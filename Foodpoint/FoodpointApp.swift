@@ -11,7 +11,8 @@ import SwiftUI
 struct FoodpointApp: App {
     var body: some Scene {
         WindowGroup {
-            MainContentView()
+            ContentView()
+                .environment(AppState.shared)
         }
     }
 }
