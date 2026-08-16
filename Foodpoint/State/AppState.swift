@@ -4,9 +4,14 @@ import Observation
 class AppState {
     static let shared = AppState()
 
-    private init() {}
+    let defaultLocationID: Location.ID
+    var locations: [Location]
 
-    var locations: [Location] = []
+    private init() {
+        let defaultLocation = Location(name: "Default", isDefault: true)
+        defaultLocationID = defaultLocation.id
+        locations = [defaultLocation]
+    }
 
     func addLocation(name: String) {
         locations.append(Location(name: name))

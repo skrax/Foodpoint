@@ -61,28 +61,25 @@ struct ScannerView: View {
 
     @ViewBuilder
     private func saveToLocationSection(for product: FoodProduct) -> some View {
-        if appState.locations.isEmpty {
-            Text("Create a location to save this product.")
+        if let savedLocationName {
+            Text("Saved to \(savedLocationName)")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
-        } else {
+                .foregroundStyle(.green)
+        }
+
+        let otherLocations = appState.locations.filter { $0.id != appState.defaultLocationID }
+        if !otherLocations.isEmpty {
             Menu {
-                ForEach(appState.locations) { location in
+                ForEach(otherLocations) { location in
                     Button(location.name) {
                         appState.addProduct(product, toLocationWithID: location.id)
                         savedLocationName = location.name
                     }
                 }
             } label: {
-                Label("Save to Location", systemImage: "tray.and.arrow.down")
+                Label("Also Save to Another Location", systemImage: "tray.and.arrow.down")
             }
             .buttonStyle(.bordered)
-
-            if let savedLocationName {
-                Text("Saved to \(savedLocationName)")
-                    .font(.footnote)
-                    .foregroundStyle(.green)
-            }
         }
     }
 
@@ -95,6 +92,8 @@ struct ScannerView: View {
                 await MainActor.run {
                     self.scannedProduct = product
                     self.isLoading = false
+                    appState.addProduct(product, toLocationWithID: appState.defaultLocationID)
+                    self.savedLocationName = appState.locations.first { $0.id == appState.defaultLocationID }?.name
                 }
             } catch {
                 await MainActor.run {

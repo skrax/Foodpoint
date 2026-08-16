@@ -5,32 +5,27 @@ struct LocationView: View {
     @Environment(AppState.self) private var appState
     
     var body: some View {
-        if appState.locations.isEmpty {
-            LocationUnavailableView()
-        }
-        else {
-            NavigationStack {
-                List {
-                    ForEach(appState.locations) { location in
-                        NavigationLink(location.name) {
-                            LocationDetailView(locationID: location.id)
-                        }
+        NavigationStack {
+            List {
+                ForEach(appState.locations) { location in
+                    NavigationLink(location.name) {
+                        LocationDetailView(locationID: location.id)
                     }
                 }
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button {
-                            showForm = true
-                        }
-                        label: {
-                            Label("Add", systemImage: "plus")
-                        }
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showForm = true
+                    }
+                    label: {
+                        Label("Add", systemImage: "plus")
                     }
                 }
-                .sheet(isPresented: $showForm) {
-                    CreateLocationForm {
-                        newLocation in appState.addLocation(name: newLocation)
-                    }
+            }
+            .sheet(isPresented: $showForm) {
+                CreateLocationForm {
+                    newLocation in appState.addLocation(name: newLocation)
                 }
             }
         }

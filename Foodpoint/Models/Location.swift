@@ -4,10 +4,12 @@ struct Location: Identifiable {
     let id: UUID
     var name: String
     var items: [LocationItem] = []
+    let isDefault: Bool
 
-    init(id: UUID = UUID(), name: String) {
+    init(id: UUID = UUID(), name: String, isDefault: Bool = false) {
         self.id = id
         self.name = name
+        self.isDefault = isDefault
     }
 }
 
