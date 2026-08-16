@@ -8,6 +8,9 @@
 
 import SwiftUI
 
+/// Product summary card: image, name, brand, category, Nutri-Score, and
+/// per-100g nutrition facts. Used in the scanner, and reused (nutrition
+/// facts included) at the top of `ItemDetailView`.
 struct ProductDetailCard: View {
     let product: FoodProduct
 

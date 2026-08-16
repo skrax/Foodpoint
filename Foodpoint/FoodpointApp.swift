@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+/// App entry point. Injects the single shared `AppState` into the view hierarchy.
 @main
 struct FoodpointApp: App {
     var body: some Scene {

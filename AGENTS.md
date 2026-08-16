@@ -5,10 +5,12 @@ Guidance for AI coding assistants working in this repo. See
 
 ## What this is
 
-Foodpoint is a solo-developer SwiftUI iOS prototype: a pantry inventory
-tracker where users scan barcodes to add food items to named locations,
-with product/nutrition data fetched from the Open Food Facts API. It is
-early-stage — prefer small, direct changes over speculative abstractions.
+Foodpoint is a solo-developer SwiftUI iOS prototype: scan a barcode, look
+up the product on Open Food Facts, and save it into a flat, quantity-
+tracked item list. It is early-stage — prefer small, direct changes over
+speculative abstractions. (A prior "locations" feature — organizing items
+into named places — was built and then deliberately scrapped; the flat
+item list is the current, intentional design, not a placeholder.)
 
 ## Build & test
 
@@ -23,7 +25,22 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
 ```
 
 There is no test target yet. Verify changes by building and, where
-practical, running the app in the simulator.
+practical, running the app in the simulator or on a physical device (see
+"Deploying to a device" below).
+
+## Documentation is mandatory here
+
+Unlike the general default of writing minimal comments, **this repo
+requires both of the following on every change that adds, edits, or
+removes code:**
+
+1. **Doc comments (`///`)** on new/changed types, properties, and
+   non-trivial functions — explain *why*/*what this is for*, not just
+   restate the signature. Every existing type in the codebase has one;
+   match that standard for anything new.
+2. **Update this file and README.md** whenever the change affects project
+   structure, conventions, or the feature set they describe. Don't leave
+   them describing a previous version of the app.
 
 ## Project structure & conventions
 
@@ -34,30 +51,58 @@ needed when adding a new file.
 
 - `Foodpoint/State/` — Global, app-wide state. `AppState` is an
   `@Observable` singleton (`AppState.shared`) accessed via
-  `@Environment(AppState.self)`. Keep this for state genuinely shared
-  across views (e.g. the list of locations); don't route local/form state
-  through it.
-- `Foodpoint/ViewModels/` — One `@Observable` class per view that needs
-  local state, validation, or non-trivial logic (e.g.
-  `CreateLocationFormViewModel`). Views hold the view model with
-  `@State private var viewModel = ...`. Simple, stateless views don't need
-  one.
+  `@Environment(AppState.self)`. Holds the flat `items: [FoodItem]` list
+  and `unitConfigs` (per-barcode `ProductUnit`, persisted independently of
+  `items` so it survives an item being fully consumed).
+- `Foodpoint/Models/` — Plain data types: `FoodItem` (a saved product +
+  quantity + unit), `ProductUnit`/`UnitTrackingMode` (how a product's
+  quantity is counted — by discrete count or by weight — with the
+  grams-per-unit math used for per-unit nutrition), and `FoodCategory`
+  (best-effort category/icon guess from Open Food Facts tags).
 - `Foodpoint/Views/` — SwiftUI views. Keep view bodies declarative; push
-  validation/business logic into a view model rather than free functions
-  or inline closures.
+  non-trivial logic into private methods on the view or into the model
+  layer (e.g. `ProductUnit.make`) rather than free functions.
 - `Foodpoint/Scanners/` — Barcode scanning. Wraps `AVFoundation`
   (`AVCaptureSession`) directly via `UIViewRepresentable`; not a SwiftUI-
-  native camera API.
+  native camera API, and specifically not VisionKit's
+  `DataScannerViewController` (device-only, unsupported in Simulator).
 - `Foodpoint/OpenFoodFacts/` — Networking (`OpenFoodFactsService`, a
   singleton using `async/await` + `URLSession`) and Codable response
   models for the Open Food Facts v2 API. Errors surface as
   `OpenFoodFactsError`.
 
+There is currently no `ViewModels/` folder — views that need local state
+just use `@State` directly (see `ScannerView`, `ItemDetailView`). Only
+introduce a dedicated `@Observable` view model if a view's logic grows
+complex enough to warrant testing or reuse independent of the view.
+
+## Deploying to a device
+
+If the user has granted standing permission to deploy to a connected
+physical iPhone for the session, after building for the simulator also
+build/install/launch on the device:
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
+  xcodebuild -project Foodpoint.xcodeproj -scheme Foodpoint \
+  -destination 'id=<device-udid>' build
+
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
+  xcrun devicectl device install app --device <device-udid> \
+  <path-to>/Foodpoint.app
+
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
+  xcrun devicectl device process launch --device <device-udid> fseidl.Foodpoint
+```
+
+Find the device UDID with `xcrun xctrace list devices`. If launch fails
+with a "device not unlocked" error, the build/install still succeeded —
+just ask the user to unlock and open the app themselves.
+
 ## Style notes
 
-- No comments explaining *what* code does — only *why*, for non-obvious
-  constraints (see `OpenFoodFactsService`'s User-Agent header, required by
-  Open Food Facts' terms of service).
 - Prefer editing/extending existing files over introducing new
   abstractions or dependencies. This is a small prototype; don't add
   frameworks, DI containers, or layers it doesn't need yet.
+- See "Documentation is mandatory here" above — this repo's comment
+  policy is an explicit exception to the general minimal-comments default.

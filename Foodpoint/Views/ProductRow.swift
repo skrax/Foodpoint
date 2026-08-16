@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Shared list row (name, brand, category icon, quantity) used by `ItemsView`.
 struct ProductRow: View {
     let product: FoodProduct
     let quantity: Double

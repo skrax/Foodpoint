@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// "Items" tab: the flat, alphabetically sorted list of every saved product,
+/// tapping through to `ItemDetailView` for quantity editing and nutrition.
 struct ItemsView: View {
     @Environment(AppState.self) private var appState
 

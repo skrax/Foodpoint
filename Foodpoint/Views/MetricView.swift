@@ -8,6 +8,8 @@
 
 import SwiftUI
 
+/// A small labeled stat tile (e.g. "Calories" / "210 kcal"), used in the
+/// nutrition-facts rows of `ProductDetailCard` and `ItemDetailView`.
 struct MetricView: View {
     let label: String
     let value: String

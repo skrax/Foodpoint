@@ -1,5 +1,8 @@
 import SwiftUI
 
+/// Dims the camera preview outside a rectangular cutout and draws a pulsing
+/// corner reticle inside it, guiding the user to align a barcode.
+/// Purely decorative — overlaid on top of `FastFoodBarcodeScanner`.
 struct ViewfinderOverlay: View {
     // 🎨 Styling parameters
     let backgroundOpacity: Double = 0.65

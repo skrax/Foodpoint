@@ -8,6 +8,8 @@
 
 import Foundation
 
+/// Errors surfaced by `OpenFoodFactsService`, with user-facing messages
+/// via `LocalizedError` for display in the scanner's error state.
 enum OpenFoodFactsError: Error, LocalizedError {
     case invalidURL
     case productNotFound

@@ -1,6 +1,7 @@
 import SwiftUI
 
-// Draw the four sharp corners of the viewfinder
+/// Draws four corner brackets (no connecting edges) framing the scanner's
+/// viewfinder cutout in `ViewfinderOverlay`.
 struct ReticleShape: Shape {
     var cornerLength: CGFloat = 20
     var lineWidth: CGFloat = 3

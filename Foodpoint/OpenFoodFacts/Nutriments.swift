@@ -8,6 +8,7 @@
 
 import Foundation
 
+/// Nutrition facts as reported by Open Food Facts, always per 100g of product.
 struct Nutriments: Decodable {
     let energyKcal100g: Double?
     let proteins100g: Double?
@@ -27,7 +28,8 @@ struct Nutriments: Decodable {
         case sodium100g = "sodium_100g"
     }
 
-    // `factor` is grams-per-unit / 100, converting these per-100g figures to per-unit.
+    /// Converts these per-100g figures to per-count-unit figures.
+    /// `factor` is `gramsPerUnit / 100` — e.g. a 40g bar gives `factor = 0.4`.
     func scaled(by factor: Double) -> Nutriments {
         Nutriments(
             energyKcal100g: energyKcal100g.map { $0 * factor },

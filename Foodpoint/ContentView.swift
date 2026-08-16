@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Root tab bar: browse saved items, or scan a new one.
 struct ContentView : View {
     var body: some View {
         TabView {

@@ -8,16 +8,24 @@
 
 import Foundation
 
+/// A product as returned by the Open Food Facts v2 API. Decoded from
+/// whichever fields OFF includes for that barcode — most are optional
+/// because OFF's data coverage varies a lot per product.
 struct FoodProduct: Decodable, Identifiable {
     var id: String { barcode }
     let barcode: String
     let productName: String?
     let brands: String?
     let imageFrontUrl: String?
+    /// OFF's free-text package quantity (e.g. "750g"), not used for unit
+    /// math — see `ProductUnit` for the app's own configured quantity.
     let quantity: String?
     let nutriScoreGrade: String?
     let ingredientsText: String?
+    /// Nutrition facts per 100g. Scaled to per-count via `Nutriments.scaled(by:)`.
     let nutriments: Nutriments?
+    /// OFF's hierarchical category tags (e.g. `["en:dairies", "en:cheeses"]`),
+    /// used by `FoodProduct.category` to guess a display icon.
     let categoriesTags: [String]?
 
     enum CodingKeys: String, CodingKey {

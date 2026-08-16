@@ -8,8 +8,11 @@
 
 import Foundation
 
+/// Envelope returned by the OFF v2 product endpoint, wrapping the actual
+/// `FoodProduct` payload plus a status flag for "not found" responses.
 struct OpenFoodFactsResponse: Decodable {
-    let status: Int          // 1 = found, 0 = product not found
+    /// 1 = found, 0 = product not found.
+    let status: Int
     let statusVerbose: String
     let product: FoodProduct?
 

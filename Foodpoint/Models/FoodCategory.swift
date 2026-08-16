@@ -1,5 +1,7 @@
 import Foundation
 
+/// A coarse grocery category used to pick an icon for a product, derived
+/// best-effort from Open Food Facts' category tags (see `FoodProduct.category`).
 enum FoodCategory: String, CaseIterable {
     case fruitsAndVegetables = "Fruits & Vegetables"
     case dairyAndEggs = "Dairy & Eggs"
@@ -10,6 +12,7 @@ enum FoodCategory: String, CaseIterable {
     case frozen = "Frozen"
     case other = "Other"
 
+    /// SF Symbol shown next to products of this category.
     var icon: String {
         switch self {
         case .fruitsAndVegetables: "carrot.fill"
@@ -25,7 +28,12 @@ enum FoodCategory: String, CaseIterable {
 }
 
 extension FoodProduct {
-    // Best-effort guess from Open Food Facts' free-form category tags.
+    /// Best-effort guess from Open Food Facts' free-form category tags.
+    ///
+    /// OFF's `categories_tags` vocabulary is huge and inconsistent, so this
+    /// does simple keyword matching (checked in order, most specific first)
+    /// rather than trying to map the full taxonomy. Falls back to `.other`
+    /// when there's no useful data or no keyword matches.
     var category: FoodCategory {
         guard let tags = categoriesTags, !tags.isEmpty else { return .other }
         let joined = tags.joined(separator: " ").lowercased()

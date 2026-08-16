@@ -1,9 +1,14 @@
 import Foundation
 
+/// Thin client for the Open Food Facts public product API. Stateless and
+/// requires no API key — queries are anonymous per OFF's terms of service.
 final class OpenFoodFactsService {
     static let shared = OpenFoodFactsService()
     private init() {}
 
+    /// Looks up a product by barcode.
+    /// - Throws: `OpenFoodFactsError` for a bad URL, a non-200 response,
+    ///   an OFF "not found" status, or a decoding failure.
     func fetchProduct(barcode: String) async throws -> FoodProduct {
         // Open Food Facts v2 API endpoint
         let urlString = "https://world.openfoodfacts.org/api/v2/product/\(barcode).json"

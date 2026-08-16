@@ -1,6 +1,13 @@
 import SwiftUI
 
+/// Detail screen for one saved item: nutrition (per 100g, and per configured
+/// unit if known), an editable quantity, and an "Edit Unit" section for
+/// reconfiguring how the product is tracked. Auto-dismisses if the item is
+/// removed (quantity driven to 0) while this view is open.
 struct ItemDetailView: View {
+    /// All text fields on this screen share one focus state so the keyboard's
+    /// "Done" button dismisses whichever one is active — quantity or the
+    /// three unit-edit fields.
     private enum Field: Hashable {
         case quantity, packageWeight, countLabel, countPerPackage
     }
@@ -58,6 +65,7 @@ struct ItemDetailView: View {
         }
     }
 
+    /// Numeric quantity field (in `item.unit.label` units) plus ±1 nudge buttons.
     private func quantitySection(for item: FoodItem) -> some View {
         HStack {
             Button {
@@ -92,11 +100,13 @@ struct ItemDetailView: View {
         quantityText = formatted(newValue)
     }
 
+    /// `nil` when `gramsPerUnit` isn't configured — nothing to scale by.
     private func nutritionPerUnit(for item: FoodItem) -> Nutriments? {
         guard let nutriments = item.product.nutriments, let grams = item.unit.gramsPerUnit else { return nil }
         return nutriments.scaled(by: grams / 100)
     }
 
+    /// E.g. "Nutrition per bar (40g)" followed by the scaled macro tiles.
     private func nutritionPerUnitSection(_ nutriments: Nutriments, label: String, grams: Double) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Nutrition per \(label) (\(formatted(grams))g)")
@@ -116,6 +126,8 @@ struct ItemDetailView: View {
         .padding(.horizontal)
     }
 
+    /// Collapsed to an "Edit Unit" button until tapped, then shows the same
+    /// Weight/Count config form as `ScannerView.unitConfigFields`.
     private func unitEditSection(for item: FoodItem) -> some View {
         VStack(spacing: 8) {
             if isEditingUnit {
@@ -170,6 +182,7 @@ struct ItemDetailView: View {
         return "≈ \(grams) g per \(label)"
     }
 
+    /// Decomposes the item's current `ProductUnit` back into form fields.
     private func beginEditingUnit(_ unit: ProductUnit) {
         unitMode = unit.trackingMode
         packageWeightText = unit.packageWeight.map(formatted) ?? ""

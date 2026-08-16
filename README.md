@@ -1,9 +1,17 @@
 # Foodpoint
 
-Foodpoint is an iOS pantry inventory tracker. You organize food into
-locations (fridge, pantry, freezer, ...) and add items by scanning their
-barcode — nutrition and product data (name, brand, Nutri-Score, calories,
-macros) is pulled live from [Open Food Facts](https://world.openfoodfacts.org).
+Foodpoint is an iOS pantry inventory tracker. Scan a barcode, and the
+product's nutrition and brand info (name, brand, category, Nutri-Score,
+calories, macros) is pulled live from
+[Open Food Facts](https://world.openfoodfacts.org). Saved products live in
+one flat, quantity-tracked list.
+
+Each product's quantity can be tracked either as a **count** (e.g. 12
+"bars", 15 "slices") or by **weight** (grams) — configured once per
+barcode the first time it's scanned, and reusable/editable afterwards.
+When a product is tracked by count with a known package weight, nutrition
+facts are also shown per count-unit (e.g. "Nutrition per bar (40g)"), not
+just Open Food Facts' raw per-100g figures.
 
 This is an early solo prototype — expect rough edges and missing features.
 
@@ -40,11 +48,14 @@ instead of changing the system-wide `xcode-select` path.
 
 ```
 Foodpoint/
-  State/          Global app state (AppState, @Observable singleton)
-  ViewModels/      Per-view @Observable view models (form state, validation)
-  Views/           SwiftUI views
-  Scanners/        Barcode scanning (AVFoundation-backed UIViewRepresentable)
-  OpenFoodFacts/   Networking + models for the Open Food Facts API
+  FoodpointApp.swift   App entry point
+  ContentView.swift    Root tab bar (Items, Scan)
+  ScannerView.swift    Scan tab: barcode -> OFF lookup -> save/discard
+  State/               Global app state (AppState, @Observable singleton)
+  Models/               FoodItem, ProductUnit, FoodCategory
+  Views/                Items list, item detail, shared row/card components
+  Scanners/             Barcode scanning (AVFoundation-backed UIViewRepresentable)
+  OpenFoodFacts/         Networking + models for the Open Food Facts API
 ```
 
 See [AGENTS.md](AGENTS.md) for conventions and more detail aimed at

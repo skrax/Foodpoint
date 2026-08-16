@@ -1,6 +1,12 @@
 import SwiftUI
 import AVFoundation
 
+/// SwiftUI wrapper around a raw `AVCaptureSession`-based barcode scanner.
+///
+/// Used instead of VisionKit's `DataScannerViewController` because that API
+/// is device-only and reports unsupported in the iOS Simulator; this one
+/// works with the Simulator's camera passthrough too. `onScan` fires once
+/// per presentation, with the first food barcode (EAN-13/UPC-E/EAN-8) found.
 struct FastFoodBarcodeScanner: UIViewRepresentable {
     var onScan: (String) -> Void
 
@@ -13,7 +19,8 @@ struct FastFoodBarcodeScanner: UIViewRepresentable {
     func updateUIView(_ uiView: FastScannerUIView, context: Context) {}
 }
 
-// Low-level UIKit view wrapped directly around AVCaptureSession
+/// Low-level UIKit view wrapped directly around `AVCaptureSession`.
+/// Stops scanning and fires `onScan` after the first successful detection.
 final class FastScannerUIView: UIView, AVCaptureMetadataOutputObjectsDelegate {
     var onScan: ((String) -> Void)?
     
@@ -108,7 +115,7 @@ final class FastScannerUIView: UIView, AVCaptureMetadataOutputObjectsDelegate {
         }
     }
 
-    // Direct hardware delegate callback - fires instantly upon detection
+    /// Direct hardware delegate callback — fires instantly upon detection.
     func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
         guard !hasScanned,
               let metadataObject = metadataObjects.first as? AVMetadataMachineReadableCodeObject,

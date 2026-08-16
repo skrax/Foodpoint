@@ -8,6 +8,9 @@
 
 import SwiftUI
 
+/// "Scan" tab: scan a barcode, look up the product on Open Food Facts, and
+/// either save it (into the flat item list, configuring its unit first if
+/// this barcode has never been saved before) or discard it and scan again.
 struct ScannerView: View {
     private enum UnitField: Hashable {
         case packageWeight, countLabel, countPerPackage
@@ -18,7 +21,10 @@ struct ScannerView: View {
     @State private var scannedProduct: FoodProduct?
     @State private var isLoading = false
     @State private var errorMessage: String?
+    /// Whether the currently displayed `scannedProduct` has been saved yet.
     @State private var didSave = false
+    /// Whether `scannedProduct`'s barcode has no remembered unit config yet,
+    /// i.e. whether to show `unitConfigFields` before it can be saved.
     @State private var isNewProduct = false
     @State private var unitMode: UnitTrackingMode = .count
     @State private var packageWeightText = ""
@@ -26,6 +32,8 @@ struct ScannerView: View {
     @State private var countPerPackageText = "1"
     @FocusState private var focusedUnitField: UnitField?
 
+    /// Whether the "Save" / "Scan Without Saving" pair should replace the
+    /// plain "Scan Food Barcode" button.
     private var canSave: Bool {
         scannedProduct != nil && !didSave && !isLoading
     }
@@ -107,6 +115,9 @@ struct ScannerView: View {
         }
     }
 
+    /// Weight/Count tracking-mode setup shown only for a barcode that's
+    /// never been saved before; reused every time this barcode is saved
+    /// afterwards without being shown again.
     private var unitConfigFields: some View {
         VStack(spacing: 8) {
             Text("How is this counted?")
@@ -146,6 +157,8 @@ struct ScannerView: View {
         .padding(.horizontal)
     }
 
+    /// Live "≈ Xg per slice" preview computed from the weight/count fields,
+    /// shown while the user is still filling in the count-mode form.
     private var derivedGramsPerUnitHint: String? {
         guard let weight = Double(packageWeightText), weight > 0,
               let count = Double(countPerPackageText), count > 0 else { return nil }
@@ -154,6 +167,7 @@ struct ScannerView: View {
         return "≈ \(grams) g per \(label)"
     }
 
+    /// Saves the current product, then immediately reopens the scanner for the next one.
     private func save() {
         guard let product = scannedProduct else { return }
         let unit = isNewProduct ? unitFromFields() : nil
@@ -167,6 +181,7 @@ struct ScannerView: View {
         isShowingScanner = true
     }
 
+    /// Builds a `ProductUnit` from the config form's current input.
     private func unitFromFields() -> ProductUnit {
         ProductUnit.make(
             mode: unitMode,
