@@ -2,40 +2,42 @@ import Foundation
 import Observation
 
 /// App-wide state: the flat list of saved food items and the remembered
-/// unit configuration per barcode. Single `@Observable` singleton injected
-/// into the environment by `FoodpointApp`.
+/// unit configuration per barcode. The app uses the `shared` singleton via
+/// `@Environment(AppState.self)`; `init()` is public (rather than the
+/// usual private-singleton pattern) so tests can construct isolated
+/// instances instead of sharing global state across test cases.
 @Observable
-class AppState {
-    static let shared = AppState()
+public class AppState {
+    public static let shared = AppState()
 
-    private init() {}
+    public init() {}
 
-    var items: [FoodItem] = []
+    public var items: [FoodItem] = []
     /// Default unit config keyed by barcode. Kept separate from `items` so a
     /// product's configured label/package size survives it being fully
     /// consumed and removed, and is reused automatically on re-scan.
-    var unitConfigs: [String: ProductUnit] = [:]
+    public var unitConfigs: [String: ProductUnit] = [:]
     /// Additional remembered package-size variants per barcode (e.g. a "Small"
     /// 500g bag alongside the "Default" 750g one). Same `label`/`gramsPerUnit`
     /// as the barcode's `unitConfigs` entry — only `name` and
     /// `quantityPerPackage` (and, for count-mode units, the implied package
     /// weight) differ between variants, since a unit's tracking mode/label
     /// can't change per scan.
-    var unitVariants: [String: [ProductUnit]] = [:]
+    public var unitVariants: [String: [ProductUnit]] = [:]
     /// Default nutrition data set per barcode — Open Food Facts' own figures
     /// if it had any, or the user's own once configured.
-    var nutritionConfigs: [String: NutritionVariant] = [:]
+    public var nutritionConfigs: [String: NutritionVariant] = [:]
     /// Additional remembered nutrition variants per barcode (e.g. Open Food
     /// Facts' figures kept as an alternate once the user's custom values
     /// become the default, or vice versa).
-    var nutritionVariants: [String: [NutritionVariant]] = [:]
+    public var nutritionVariants: [String: [NutritionVariant]] = [:]
 
     /// Saves a scanned product, or adds another package of it if already saved.
     /// `unit` is used as-is for this add. If this barcode has no default
     /// config yet, `unit` also becomes that default. Likewise, if Open Food
     /// Facts provided usable nutrition data and none is remembered yet, it
     /// becomes the default nutrition variant.
-    func addProduct(_ product: Product, unit: ProductUnit) {
+    public func addProduct(_ product: Product, unit: ProductUnit) {
         if unitConfigs[product.id] == nil {
             unitConfigs[product.id] = unit
         }
@@ -56,7 +58,7 @@ class AppState {
 
     /// Every package-size variant known for a barcode: its default config
     /// first, then any remembered alternates.
-    func allVariants(forBarcode barcode: String) -> [ProductUnit] {
+    public func allVariants(forBarcode barcode: String) -> [ProductUnit] {
         var list: [ProductUnit] = []
         if let base = unitConfigs[barcode] { list.append(base) }
         list.append(contentsOf: unitVariants[barcode] ?? [])
@@ -66,14 +68,14 @@ class AppState {
     /// Remembers a new package-size variant for a barcode (carries its own
     /// `name`), so it can be picked again on a future scan instead of
     /// retyped from scratch.
-    func addUnitVariant(_ unit: ProductUnit, forBarcode barcode: String) {
+    public func addUnitVariant(_ unit: ProductUnit, forBarcode barcode: String) {
         unitVariants[barcode, default: []].append(unit)
     }
 
     /// Updates an existing variant (matched by `id`) in place — the default
     /// slot or the variants list, whichever holds it — and refreshes any
     /// currently saved item whose `unit` is that same variant.
-    func updateVariant(_ variant: ProductUnit, forBarcode barcode: String) {
+    public func updateVariant(_ variant: ProductUnit, forBarcode barcode: String) {
         if unitConfigs[barcode]?.id == variant.id {
             unitConfigs[barcode] = variant
         } else if var list = unitVariants[barcode], let index = list.firstIndex(where: { $0.id == variant.id }) {
@@ -87,7 +89,7 @@ class AppState {
 
     /// Removes a variant from `unitVariants`. The default (`unitConfigs`)
     /// entry is never removable this way — the UI hides that option for it.
-    func removeVariant(_ variantID: UUID, forBarcode barcode: String) {
+    public func removeVariant(_ variantID: UUID, forBarcode barcode: String) {
         guard unitConfigs[barcode]?.id != variantID else { return }
         unitVariants[barcode]?.removeAll { $0.id == variantID }
     }
@@ -96,7 +98,7 @@ class AppState {
     /// moving the previous default into `unitVariants` in its place (so it
     /// remains selectable rather than disappearing). No-op if `variantID`
     /// is already the default, or isn't a known variant for this barcode.
-    func makeDefault(_ variantID: UUID, forBarcode barcode: String) {
+    public func makeDefault(_ variantID: UUID, forBarcode barcode: String) {
         guard let currentDefault = unitConfigs[barcode], currentDefault.id != variantID,
               var list = unitVariants[barcode],
               let index = list.firstIndex(where: { $0.id == variantID }) else { return }
@@ -119,18 +121,18 @@ class AppState {
 
     /// Every nutrition variant known for a barcode: its default first, then
     /// any remembered alternates.
-    func allNutritionVariants(forBarcode barcode: String) -> [NutritionVariant] {
+    public func allNutritionVariants(forBarcode barcode: String) -> [NutritionVariant] {
         var list: [NutritionVariant] = []
         if let base = nutritionConfigs[barcode] { list.append(base) }
         list.append(contentsOf: nutritionVariants[barcode] ?? [])
         return list
     }
 
-    func addNutritionVariant(_ variant: NutritionVariant, forBarcode barcode: String) {
+    public func addNutritionVariant(_ variant: NutritionVariant, forBarcode barcode: String) {
         nutritionVariants[barcode, default: []].append(variant)
     }
 
-    func updateNutritionVariant(_ variant: NutritionVariant, forBarcode barcode: String) {
+    public func updateNutritionVariant(_ variant: NutritionVariant, forBarcode barcode: String) {
         if nutritionConfigs[barcode]?.id == variant.id {
             nutritionConfigs[barcode] = variant
             syncItemNutrition(variant.nutrition, forBarcode: barcode)
@@ -142,14 +144,14 @@ class AppState {
 
     /// Removes a variant from `nutritionVariants`. The default
     /// (`nutritionConfigs`) entry is never removable this way.
-    func removeNutritionVariant(_ variantID: UUID, forBarcode barcode: String) {
+    public func removeNutritionVariant(_ variantID: UUID, forBarcode barcode: String) {
         guard nutritionConfigs[barcode]?.id != variantID else { return }
         nutritionVariants[barcode]?.removeAll { $0.id == variantID }
     }
 
     /// Makes an existing alternate variant the default, demoting the
     /// previous default into `nutritionVariants` in its place.
-    func makeNutritionDefault(_ variantID: UUID, forBarcode barcode: String) {
+    public func makeNutritionDefault(_ variantID: UUID, forBarcode barcode: String) {
         guard let currentDefault = nutritionConfigs[barcode], currentDefault.id != variantID,
               var list = nutritionVariants[barcode],
               let index = list.firstIndex(where: { $0.id == variantID }) else { return }
@@ -165,7 +167,7 @@ class AppState {
     /// alternate. Used when the user picks "Use Open Food Facts" on a
     /// nutrition-update prompt, where the new variant may not have been
     /// stored as an alternate yet.
-    func setDefaultNutritionVariant(_ variant: NutritionVariant, forBarcode barcode: String) {
+    public func setDefaultNutritionVariant(_ variant: NutritionVariant, forBarcode barcode: String) {
         nutritionVariants[barcode]?.removeAll { $0.id == variant.id }
         if let previousDefault = nutritionConfigs[barcode], previousDefault.id != variant.id {
             nutritionVariants[barcode, default: []].append(previousDefault)
@@ -179,7 +181,7 @@ class AppState {
     /// which variant is the default. Used when the user declines a
     /// nutrition update but Open Food Facts' new figures should still be
     /// remembered for future comparison.
-    func refreshNutritionVariant(_ variant: NutritionVariant, forBarcode barcode: String) {
+    public func refreshNutritionVariant(_ variant: NutritionVariant, forBarcode barcode: String) {
         if nutritionConfigs[barcode]?.id == variant.id {
             nutritionConfigs[barcode] = variant
             syncItemNutrition(variant.nutrition, forBarcode: barcode)
@@ -195,7 +197,7 @@ class AppState {
     /// there's nothing worth asking about: `offNutrition` is missing/empty,
     /// or it matches what's already remembered as this barcode's
     /// Open-Food-Facts-sourced variant (i.e. nothing changed since last time).
-    func pendingNutritionUpdate(from offNutrition: Nutrition?, forBarcode barcode: String) -> NutritionVariant? {
+    public func pendingNutritionUpdate(from offNutrition: Nutrition?, forBarcode barcode: String) -> NutritionVariant? {
         guard let offNutrition, !offNutrition.isEffectivelyEmpty else { return nil }
         let existingOFF = allNutritionVariants(forBarcode: barcode).first { $0.source == .openFoodFacts }
         if let existingOFF, existingOFF.nutrition.isApproximatelyEqual(to: offNutrition) {
@@ -215,7 +217,7 @@ class AppState {
     }
 
     /// Sets an item's remaining quantity. A value `<= 0` removes the item entirely.
-    func setQuantity(_ quantity: Double, forItemID itemID: String) {
+    public func setQuantity(_ quantity: Double, forItemID itemID: String) {
         guard let index = items.firstIndex(where: { $0.id == itemID }) else { return }
         if quantity <= 0 {
             items.remove(at: index)
@@ -224,7 +226,7 @@ class AppState {
         }
     }
 
-    func removeItem(_ itemID: String) {
+    public func removeItem(_ itemID: String) {
         items.removeAll { $0.id == itemID }
     }
 }

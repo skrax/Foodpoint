@@ -1,4 +1,5 @@
 import SwiftUI
+import FoodpointKit
 
 /// Lists every package-size variant remembered for a barcode, with rename/
 /// resize, add, and delete. Used both from `ScannerView` (to pick a variant

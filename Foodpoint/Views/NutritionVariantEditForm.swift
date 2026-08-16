@@ -1,4 +1,5 @@
 import SwiftUI
+import FoodpointKit
 
 /// Add or edit a single nutrition data set, per 100g. Open-Food-Facts-sourced
 /// entries are read-only — their name and numbers should reflect exactly

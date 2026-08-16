@@ -1,4 +1,5 @@
 import SwiftUI
+import FoodpointKit
 
 /// "Items" tab: the flat, alphabetically sorted list of every saved product,
 /// tapping through to `ItemDetailView` for quantity editing and nutrition.

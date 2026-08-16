@@ -1,4 +1,5 @@
 import SwiftUI
+import FoodpointKit
 
 /// Shared list row (name, brand, category icon, quantity) used by `ItemsView`.
 struct ProductRow: View {

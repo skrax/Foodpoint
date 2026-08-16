@@ -6,7 +6,7 @@ extension String {
     /// but a `.decimalPad` keyboard shows "," as the separator key in many
     /// locales (e.g. German), so typing "5,2" would otherwise silently fail
     /// to parse and the value would be dropped as if never entered.
-    var localizedDouble: Double? {
+    public var localizedDouble: Double? {
         Double(replacingOccurrences(of: ",", with: "."))
     }
 }

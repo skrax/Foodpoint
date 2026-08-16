@@ -2,7 +2,7 @@ import Foundation
 
 /// A coarse grocery category used to pick an icon for a product, derived
 /// best-effort from Open Food Facts' category tags (see `Product.category`).
-enum FoodCategory: String, CaseIterable {
+public enum FoodCategory: String, CaseIterable {
     case fruitsAndVegetables = "Fruits & Vegetables"
     case dairyAndEggs = "Dairy & Eggs"
     case meatAndFish = "Meat & Fish"
@@ -13,7 +13,7 @@ enum FoodCategory: String, CaseIterable {
     case other = "Other"
 
     /// SF Symbol shown next to products of this category.
-    var icon: String {
+    public var icon: String {
         switch self {
         case .fruitsAndVegetables: "carrot.fill"
         case .dairyAndEggs: "cup.and.saucer.fill"
@@ -34,7 +34,7 @@ extension Product {
     /// does simple keyword matching (checked in order, most specific first)
     /// rather than trying to map the full taxonomy. Falls back to `.other`
     /// when there's no useful data or no keyword matches.
-    var category: FoodCategory {
+    public var category: FoodCategory {
         guard !categoriesTags.isEmpty else { return .other }
         let joined = categoriesTags.joined(separator: " ").lowercased()
 

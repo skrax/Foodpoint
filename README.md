@@ -3,10 +3,13 @@
 Foodpoint is an iOS pantry inventory tracker. Scan a barcode, and the
 product's nutrition and brand info (name, brand, category, Nutri-Score,
 calories, macros) is pulled live from
-[Open Food Facts](https://world.openfoodfacts.org) via a local Swift
-package (`Packages/OpenFoodFacts`) and mapped into the app's own `Product`
-model — the app never touches OFF's wire-format types directly. Saved
-products live in one flat, quantity-tracked list.
+[Open Food Facts](https://world.openfoodfacts.org). Saved products live in
+one flat, quantity-tracked list.
+
+All of the app's business logic — state, models, and the Open Food Facts
+integration — lives in a local, UI-agnostic Swift package
+(`Packages/FoodpointKit`) with its own unit test suite. The SwiftUI app is
+a thin driver on top of it: views, the camera scanner, and not much else.
 
 Each product's quantity can be tracked either as a **count** (e.g. 12
 "bars", 15 "slices") or by **weight** (grams) — configured once per
@@ -46,6 +49,7 @@ This is an early solo prototype — expect rough edges and missing features.
   dependencies
 - AVFoundation for barcode scanning
 - Open Food Facts public API for product lookup
+- Swift Testing for `FoodpointKit`'s unit tests
 
 ## Requirements
 
@@ -68,25 +72,36 @@ If `xcodebuild` complains that only the Command Line Tools are selected,
 prefix the command with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`
 instead of changing the system-wide `xcode-select` path.
 
+Run `FoodpointKit`'s unit tests directly with Swift Package Manager,
+without touching Xcode or a simulator:
+
+```bash
+cd Packages/FoodpointKit && swift test
+```
+
 ## Project layout
 
 ```
 Foodpoint/
   FoodpointApp.swift   App entry point
   ContentView.swift    Root tab bar (Items, Scan)
-  ScannerView.swift    Scan tab: barcode -> OFF lookup -> map -> save/discard
-  State/               Global app state (AppState, @Observable singleton)
-  Models/               Product/Nutrition (app's domain model), FoodItem,
-                         ProductUnit, FoodCategory
-  Views/                Items list, item detail, package-size management, shared row/card components
+  ScannerView.swift    Scan tab: barcode -> AppState.lookupProduct -> save/discard
+  Views/               SwiftUI views only — no business logic
   Scanners/             Barcode scanning (AVFoundation-backed UIViewRepresentable)
-  OpenFoodFacts/         ProductMapping.swift — maps the OpenFoodFacts
-                         package's DTOs to Product/Nutrition; the only app
-                         file that imports the package
 
-Packages/OpenFoodFacts/  Local Swift package: OpenFoodFactsService,
-                         FoodProduct, Nutriments, OpenFoodFactsError —
-                         a standalone client for the OFF v2 API
+Packages/
+  FoodpointKit/          Local Swift package: all business logic, UI-agnostic
+    Sources/FoodpointKit/
+      AppState.swift      App state + all CRUD logic (items, units, nutrition)
+      ProductMapping.swift  Maps OpenFoodFacts' DTOs to Product/Nutrition;
+                             the only file that imports OpenFoodFacts
+      Models/              Product/Nutrition, FoodItem, ProductUnit,
+                            NutritionVariant, FoodCategory, NumericInput
+    Tests/FoodpointKitTests/  Swift Testing unit tests
+
+  OpenFoodFacts/          Local Swift package: OpenFoodFactsService,
+                          FoodProduct, Nutriments, OpenFoodFactsError —
+                          a standalone client for the OFF v2 API
 ```
 
 See [AGENTS.md](AGENTS.md) for conventions and more detail aimed at

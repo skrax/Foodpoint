@@ -7,6 +7,7 @@
 
 
 import SwiftUI
+import FoodpointKit
 
 /// Product summary card: image, name, brand, category, Nutri-Score, and
 /// per-100g nutrition facts. Used in the scanner, and reused (nutrition

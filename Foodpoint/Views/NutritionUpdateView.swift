@@ -1,4 +1,5 @@
 import SwiftUI
+import FoodpointKit
 
 /// Shown when a known barcode's Open Food Facts nutrition data is new or
 /// has changed since it was last seen, letting the user pick which values

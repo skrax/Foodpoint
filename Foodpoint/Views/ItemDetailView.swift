@@ -1,4 +1,5 @@
 import SwiftUI
+import FoodpointKit
 
 /// Detail screen for one saved item: nutrition (per 100g, and per configured
 /// unit if known), an editable quantity, and a "Package Sizes" button for

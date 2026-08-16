@@ -7,7 +7,7 @@
 
 
 import SwiftUI
-import OpenFoodFacts
+import FoodpointKit
 
 /// "Scan" tab: scan a barcode, look up the product on Open Food Facts, and
 /// either save it (into the flat item list, configuring its unit first if
@@ -455,8 +455,7 @@ struct ScannerView: View {
         countPerPackageText = "1"
         Task {
             do {
-                let offProduct = try await OpenFoodFactsService.shared.fetchProduct(barcode: barcode)
-                let product = Product(offProduct: offProduct)
+                let product = try await appState.lookupProduct(barcode: barcode)
                 await MainActor.run {
                     self.scannedProduct = product
                     self.isLoading = false

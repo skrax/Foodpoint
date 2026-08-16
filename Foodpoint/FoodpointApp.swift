@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FoodpointKit
 
 /// App entry point. Injects the single shared `AppState` into the view hierarchy.
 @main

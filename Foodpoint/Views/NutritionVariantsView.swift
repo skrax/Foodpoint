@@ -1,4 +1,5 @@
 import SwiftUI
+import FoodpointKit
 
 /// Lists every nutrition data set remembered for a barcode — Open Food
 /// Facts' own figures plus any custom entries — each tagged with a source

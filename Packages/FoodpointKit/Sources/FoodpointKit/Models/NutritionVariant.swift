@@ -2,7 +2,7 @@ import Foundation
 
 /// Where a `NutritionVariant`'s numbers came from — shown as a badge so the
 /// user can always tell configured data apart from Open Food Facts' own.
-enum NutritionSource: String {
+public enum NutritionSource: String {
     case openFoodFacts = "Open Food Facts"
     case custom = "Custom"
 }
@@ -12,13 +12,13 @@ enum NutritionSource: String {
 /// can have several (one default plus alternates), stored in
 /// `AppState.nutritionConfigs`/`nutritionVariants`, with a stable `id` for
 /// editing/selection independent of a (possibly-edited) `name`.
-struct NutritionVariant: Identifiable {
-    let id: UUID
-    var name: String
-    var nutrition: Nutrition
-    let source: NutritionSource
+public struct NutritionVariant: Identifiable {
+    public let id: UUID
+    public var name: String
+    public var nutrition: Nutrition
+    public let source: NutritionSource
 
-    init(id: UUID = UUID(), name: String, nutrition: Nutrition, source: NutritionSource) {
+    public init(id: UUID = UUID(), name: String, nutrition: Nutrition, source: NutritionSource) {
         self.id = id
         self.name = name
         self.nutrition = nutrition
@@ -31,7 +31,7 @@ extension Nutrition {
     /// carry a `nutriments` object with no fields actually filled in rather
     /// than omitting it, which otherwise renders as "0 kcal, 0.0g protein…"
     /// indistinguishable from genuine zero values.
-    var isEffectivelyEmpty: Bool {
+    public var isEffectivelyEmpty: Bool {
         [energyKcal100g, proteins100g, carbohydrates100g, fat100g, sugars100g, fiber100g, sodium100g]
             .allSatisfy { ($0 ?? 0) == 0 }
     }
@@ -39,7 +39,7 @@ extension Nutrition {
     /// Tolerant of tiny floating-point drift — used to detect whether Open
     /// Food Facts' data has meaningfully changed since it was last seen,
     /// so the user isn't re-asked about the same values every scan.
-    func isApproximatelyEqual(to other: Nutrition) -> Bool {
+    public func isApproximatelyEqual(to other: Nutrition) -> Bool {
         func close(_ a: Double?, _ b: Double?) -> Bool {
             switch (a, b) {
             case (nil, nil): return true

@@ -1,4 +1,5 @@
 import SwiftUI
+import FoodpointKit
 
 /// Add or rename/resize a single package-size variant. Tracking mode and
 /// label are locked to match the barcode's other variants (inferred from
