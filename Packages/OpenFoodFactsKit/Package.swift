@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "OpenFoodFacts",
+    name: "OpenFoodFactsKit",
     platforms: [.iOS(.v16), .macOS(.v12)],
     products: [
-        .library(name: "OpenFoodFacts", targets: ["OpenFoodFacts"]),
+        .library(name: "OpenFoodFactsKit", targets: ["OpenFoodFactsKit"]),
     ],
     targets: [
-        .target(name: "OpenFoodFacts"),
+        .target(name: "OpenFoodFactsKit"),
     ]
 )

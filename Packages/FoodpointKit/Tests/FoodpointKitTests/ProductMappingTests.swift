@@ -1,15 +1,15 @@
 import Foundation
 import Testing
-import OpenFoodFacts
+import OpenFoodFactsKit
 @testable import FoodpointKit
 
 @Suite("Product mapping from Open Food Facts")
 struct ProductMappingTests {
-    // `OpenFoodFacts.FoodProduct` has no public memberwise init (only the
+    // `OpenFoodFactsKit.FoodProduct` has no public memberwise init (only the
     // synthesized `Decodable.init(from:)`), so fixtures are built by
     // decoding realistic JSON - this also exercises the real CodingKeys.
-    private func decodeOFFProduct(_ json: String) throws -> OpenFoodFacts.FoodProduct {
-        try JSONDecoder().decode(OpenFoodFacts.FoodProduct.self, from: Data(json.utf8))
+    private func decodeOFFProduct(_ json: String) throws -> OpenFoodFactsKit.FoodProduct {
+        try JSONDecoder().decode(OpenFoodFactsKit.FoodProduct.self, from: Data(json.utf8))
     }
 
     @Test("full product maps every field, including nutrition")

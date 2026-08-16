@@ -2,7 +2,7 @@
 id: PA-1
 epic: package-architecture
 title: Rename OpenFoodFacts package to OpenFoodFactsKit
-status: ready
+status: done
 depends_on: []
 design_doc: package-architecture.md#31-openfoodfactskit-renamed-from-openfoodfacts
 ---
@@ -29,12 +29,12 @@ Purely mechanical — no behavior or API changes:
 
 ## Acceptance criteria
 
-- [ ] Package folder and `Package.swift` renamed
-- [ ] `project.pbxproj` references updated; package graph resolves
-- [ ] All imports updated
-- [ ] `swift test` in the renamed package passes, unchanged assertions
-- [ ] Full app build succeeds (simulator + device)
-- [ ] README.md / AGENTS.md updated
+- [x] Package folder and `Package.swift` renamed
+- [x] `project.pbxproj` references updated; package graph resolves
+- [x] All imports updated
+- [x] `swift test` in the renamed package passes, unchanged assertions
+- [x] Full app build succeeds (simulator + device)
+- [x] README.md / AGENTS.md updated
 
 ## Out of scope
 

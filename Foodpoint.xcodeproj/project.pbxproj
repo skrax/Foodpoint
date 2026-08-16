@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		F00DFACE0000000000000003 /* OpenFoodFacts in Frameworks */ = {isa = PBXBuildFile; productRef = F00DFACE0000000000000002 /* OpenFoodFacts */; };
+		F00DFACE0000000000000003 /* OpenFoodFactsKit in Frameworks */ = {isa = PBXBuildFile; productRef = F00DFACE0000000000000002 /* OpenFoodFactsKit */; };
 		F00DFACE0000000000000004 /* FoodpointKit in Frameworks */ = {isa = PBXBuildFile; productRef = F00DFACE0000000000000006 /* FoodpointKit */; };
 /* End PBXBuildFile section */
 
@@ -28,7 +28,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F00DFACE0000000000000003 /* OpenFoodFacts in Frameworks */,
+				F00DFACE0000000000000003 /* OpenFoodFactsKit in Frameworks */,
 				F00DFACE0000000000000004 /* FoodpointKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -72,7 +72,7 @@
 			);
 			name = Foodpoint;
 			packageProductDependencies = (
-				F00DFACE0000000000000002 /* OpenFoodFacts */,
+				F00DFACE0000000000000002 /* OpenFoodFactsKit */,
 				F00DFACE0000000000000006 /* FoodpointKit */,
 			);
 			productName = Foodpoint;
@@ -104,7 +104,7 @@
 			mainGroup = 75B7F70D30210B210054EADC;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				F00DFACE0000000000000001 /* XCLocalSwiftPackageReference "Packages/OpenFoodFacts" */,
+				F00DFACE0000000000000001 /* XCLocalSwiftPackageReference "Packages/OpenFoodFactsKit" */,
 				F00DFACE0000000000000005 /* XCLocalSwiftPackageReference "Packages/FoodpointKit" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -349,9 +349,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		F00DFACE0000000000000001 /* XCLocalSwiftPackageReference "Packages/OpenFoodFacts" */ = {
+		F00DFACE0000000000000001 /* XCLocalSwiftPackageReference "Packages/OpenFoodFactsKit" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = Packages/OpenFoodFacts;
+			relativePath = Packages/OpenFoodFactsKit;
 		};
 		F00DFACE0000000000000005 /* XCLocalSwiftPackageReference "Packages/FoodpointKit" */ = {
 			isa = XCLocalSwiftPackageReference;
@@ -360,10 +360,10 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		F00DFACE0000000000000002 /* OpenFoodFacts */ = {
+		F00DFACE0000000000000002 /* OpenFoodFactsKit */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = F00DFACE0000000000000001 /* XCLocalSwiftPackageReference "Packages/OpenFoodFacts" */;
-			productName = OpenFoodFacts;
+			package = F00DFACE0000000000000001 /* XCLocalSwiftPackageReference "Packages/OpenFoodFactsKit" */;
+			productName = OpenFoodFactsKit;
 		};
 		F00DFACE0000000000000006 /* FoodpointKit */ = {
 			isa = XCSwiftPackageProductDependency;

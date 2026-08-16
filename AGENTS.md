@@ -124,11 +124,11 @@ dependency" below).
       prompt). See `ScannerView`'s `knownProductNutritionStatus` and
       `NutritionUpdateView` for how the app drives these.
   - `Sources/FoodpointKit/ProductMapping.swift` — the *only* file, in the
-    app or either package, that imports `OpenFoodFacts` and touches its
+    app or either package, that imports `OpenFoodFactsKit` and touches its
     `FoodProduct`/`Nutriments` DTOs directly; everywhere else works with
     `Product`/`Nutrition`. Also defines `AppState.lookupProduct(barcode:)`,
     the single call `ScannerView` makes to fetch-and-map — the app itself
-    never imports `OpenFoodFacts`.
+    never imports `OpenFoodFactsKit`.
   - `Sources/FoodpointKit/Models/` — Plain data types: `Product`/`Nutrition`
     (the app's own domain model, decoupled from OFF's wire format),
     `FoodItem` (a saved product + quantity + unit), `ProductUnit`/
@@ -147,14 +147,14 @@ dependency" below).
   - `Tests/FoodpointKitTests/` — Swift Testing (`import Testing`, `@Test`,
     `#expect`), not XCTest. See "Testing conventions" below.
 
-- `Packages/OpenFoodFacts/` (local package, product `OpenFoodFacts`) — all
-  networking and wire-format types for the Open Food Facts v2 API:
+- `Packages/OpenFoodFactsKit/` (local package, product `OpenFoodFactsKit`) —
+  all networking and wire-format types for the Open Food Facts v2 API:
   `OpenFoodFactsService` (the client), `FoodProduct`/`Nutriments`
   (Decodable DTOs matching OFF's JSON), and `OpenFoodFactsError`. Public so
   `FoodpointKit` can consume them, but treat them as **wire-format only** —
   never store one on a model or pass one outside `ProductMapping.swift`.
   Has no dependency on `FoodpointKit` (dependency direction is one-way:
-  `Foodpoint` app -> `FoodpointKit` -> `OpenFoodFacts`).
+  `Foodpoint` app -> `FoodpointKit` -> `OpenFoodFactsKit`).
 
 Both packages build standalone (`cd Packages/<name> && swift build`), and
 are kept free of any dependency on the app target — that's what makes
@@ -183,7 +183,7 @@ new tests rather than introducing XCTest.
 - Test business logic (`AppState`, model computed properties/static
   factories like `ProductUnit.make`) thoroughly; there is no view-layer
   test target, so don't try to test SwiftUI views here.
-- `ProductMappingTests` builds `OpenFoodFacts.FoodProduct` fixtures by
+- `ProductMappingTests` builds `OpenFoodFactsKit.FoodProduct` fixtures by
   decoding realistic JSON strings (`JSONDecoder().decode(FoodProduct.self,
   from:)`) rather than a memberwise initializer — the OFF package
   intentionally has no public memberwise init for its DTOs (only the
@@ -198,7 +198,7 @@ new tests rather than introducing XCTest.
 Adding a local Swift package to the Xcode project (a new package, not a
 new file in an existing one) requires hand-editing `project.pbxproj` —
 this project has no other packages' worth of prior art beyond
-`OpenFoodFacts`/`FoodpointKit` to copy from via Xcode's GUI history. The
+`OpenFoodFactsKit`/`FoodpointKit` to copy from via Xcode's GUI history. The
 shape needed (see the existing `F00DFACE...` entries as a template):
 1. A `PBXBuildFile` wrapping a `productRef` (in the app target's
    `Frameworks` build phase's `files`).

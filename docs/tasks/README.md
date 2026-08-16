@@ -60,8 +60,8 @@ Prerequisite for meals; no new user-facing behavior. See
 
 | ID | Title | Status | Depends on |
 |----|-------|--------|-----------|
-| [PA-1](epic-1-package-architecture/PA-1-rename-openfoodfacts-kit.md) | Rename OpenFoodFacts → OpenFoodFactsKit | ready | — |
-| [PA-2](epic-1-package-architecture/PA-2-extract-food-foundation.md) | Extract FoodFoundation | backlog | PA-1 |
+| [PA-1](epic-1-package-architecture/PA-1-rename-openfoodfacts-kit.md) | Rename OpenFoodFacts → OpenFoodFactsKit | done | — |
+| [PA-2](epic-1-package-architecture/PA-2-extract-food-foundation.md) | Extract FoodFoundation | ready | PA-1 |
 | [PA-3](epic-1-package-architecture/PA-3-add-product-search.md) | Add product search (no-barcode acquisition) | backlog | PA-2 |
 | [PA-4](epic-1-package-architecture/PA-4-extract-pantry-kit.md) | Extract PantryKit | backlog | PA-2 |
 | [PA-5](epic-1-package-architecture/PA-5-slim-foodpoint-kit.md) | Slim FoodpointKit to a composition root | backlog | PA-4 |
@@ -83,8 +83,8 @@ MK-1 only strictly needs PA-5 + PA-3.
 
 ## What's next
 
-Only **PA-1** is unblocked right now — everything else waits on some part
-of the package restructuring landing first. Epic 1 is a straight line
-(PA-1 → PA-2 → {PA-3, PA-4 → PA-5}); Epic 2 fans out from MK-3 once the
-core loop exists — MK-4, MK-5, and MK-6 don't depend on each other and can
-happen in any order (or in parallel) once MK-3 is done.
+**PA-1 is done.** **PA-2** is now unblocked — everything else still waits
+on some part of the package restructuring landing first. Epic 1 is a
+straight line (PA-1 → PA-2 → {PA-3, PA-4 → PA-5}); Epic 2 fans out from
+MK-3 once the core loop exists — MK-4, MK-5, and MK-6 don't depend on each
+other and can happen in any order (or in parallel) once MK-3 is done.

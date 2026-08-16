@@ -96,13 +96,13 @@ Packages/
   FoodpointKit/          Local Swift package: all business logic, UI-agnostic
     Sources/FoodpointKit/
       AppState.swift      App state + all CRUD logic (items, units, nutrition)
-      ProductMapping.swift  Maps OpenFoodFacts' DTOs to Product/Nutrition;
-                             the only file that imports OpenFoodFacts
+      ProductMapping.swift  Maps OpenFoodFactsKit's DTOs to Product/Nutrition;
+                             the only file that imports OpenFoodFactsKit
       Models/              Product/Nutrition, FoodItem, ProductUnit,
                             NutritionVariant, FoodCategory, NumericInput
     Tests/FoodpointKitTests/  Swift Testing unit tests
 
-  OpenFoodFacts/          Local Swift package: OpenFoodFactsService,
+  OpenFoodFactsKit/       Local Swift package: OpenFoodFactsService,
                           FoodProduct, Nutriments, OpenFoodFactsError —
                           a standalone client for the OFF v2 API
 ```
