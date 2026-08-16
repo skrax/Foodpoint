@@ -11,8 +11,10 @@ struct LocationView: View {
         else {
             NavigationStack {
                 List {
-                    ForEach(appState.locations, id: \.self) { loc in
-                        Text(loc)
+                    ForEach(appState.locations) { location in
+                        NavigationLink(location.name) {
+                            LocationDetailView(locationID: location.id)
+                        }
                     }
                 }
                 .toolbar {
@@ -27,7 +29,7 @@ struct LocationView: View {
                 }
                 .sheet(isPresented: $showForm) {
                     CreateLocationForm {
-                        newLocation in appState.locations.append(newLocation)
+                        newLocation in appState.addLocation(name: newLocation)
                     }
                 }
             }

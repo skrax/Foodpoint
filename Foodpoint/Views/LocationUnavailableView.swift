@@ -17,7 +17,7 @@ struct LocationUnavailableView : View {
         }
         .sheet(isPresented: $showForm) {
             CreateLocationForm {
-                newLocation in appState.locations.append(newLocation)
+                newLocation in appState.addLocation(name: newLocation)
             }
         }
     }
