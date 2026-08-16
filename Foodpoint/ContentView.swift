@@ -3,14 +3,9 @@ import SwiftUI
 struct ContentView : View {
     var body: some View {
         TabView {
-            LocationView()
+            ItemsView()
                 .tabItem {
-                    Label("Locations", systemImage: "tray.full")
-                }
-
-            AllItemsView()
-                .tabItem {
-                    Label("All Items", systemImage: "list.bullet")
+                    Label("Items", systemImage: "list.bullet")
                 }
 
             ScannerView()

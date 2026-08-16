@@ -1,13 +1,12 @@
 import SwiftUI
 
-struct LocationItemDetailView: View {
-    let locationID: Location.ID
+struct ItemDetailView: View {
     let itemID: String
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
-    private var item: LocationItem? {
-        appState.locations.first { $0.id == locationID }?.items.first { $0.id == itemID }
+    private var item: FoodItem? {
+        appState.items.first { $0.id == itemID }
     }
 
     var body: some View {
@@ -19,7 +18,7 @@ struct LocationItemDetailView: View {
                         "Quantity: \(item.quantity.formatted(.number.precision(.fractionLength(0...2))))",
                         value: Binding(
                             get: { item.quantity },
-                            set: { appState.setQuantity($0, forItemID: itemID, inLocationWithID: locationID) }
+                            set: { appState.setQuantity($0, forItemID: itemID) }
                         ),
                         in: 0...99,
                         step: 0.5
