@@ -13,8 +13,8 @@ class AppState {
         locations = [defaultLocation]
     }
 
-    func addLocation(name: String) {
-        locations.append(Location(name: name))
+    func addLocation(name: String, icon: String) {
+        locations.append(Location(name: name, icon: icon))
     }
 
     func addProduct(_ product: FoodProduct, toLocationWithID locationID: Location.ID) {

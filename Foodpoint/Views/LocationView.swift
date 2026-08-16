@@ -8,8 +8,10 @@ struct LocationView: View {
         NavigationStack {
             List {
                 ForEach(appState.locations) { location in
-                    NavigationLink(location.name) {
+                    NavigationLink {
                         LocationDetailView(locationID: location.id)
+                    } label: {
+                        Label(location.name, systemImage: location.icon)
                     }
                 }
             }
@@ -24,8 +26,8 @@ struct LocationView: View {
                 }
             }
             .sheet(isPresented: $showForm) {
-                CreateLocationForm {
-                    newLocation in appState.addLocation(name: newLocation)
+                CreateLocationForm { name, icon in
+                    appState.addLocation(name: name, icon: icon)
                 }
             }
         }
