@@ -12,15 +12,17 @@ speculative abstractions. (A prior "locations" feature — organizing items
 into named places — was built and then deliberately scrapped; the flat
 item list is the current, intentional design, not a placeholder.)
 
-All business logic lives in the local `FoodpointKit` package, which is
-UI-agnostic (no `import SwiftUI`, no view code) and has its own unit test
-suite. The `Foodpoint` app target is a thin driver: SwiftUI views, the
-AVFoundation camera wrapper, and glue code that calls into `FoodpointKit`.
+All business logic lives in local, UI-agnostic Swift packages (no
+`import SwiftUI`, no view code anywhere in them), each with its own unit
+test suite: `FoodFoundation` holds the shared domain types and product
+lookup, and `FoodpointKit` holds app state and CRUD logic on top of it. The
+`Foodpoint` app target is a thin driver: SwiftUI views, the AVFoundation
+camera wrapper, and glue code that calls into `FoodpointKit`.
 **New logic — state mutation, derived values, parsing, anything that isn't
-literally rendering UI — belongs in `FoodpointKit`, not in a view.** This
-split exists specifically so that logic can be unit tested without a
-simulator; don't undermine it by reaching for `@State`/view-local logic
-where a testable `AppState` method would do.
+literally rendering UI — belongs in a package, not in a view.** This split
+exists specifically so that logic can be unit tested without a simulator;
+don't undermine it by reaching for `@State`/view-local logic where a
+testable `AppState` method (or a `FoodFoundation` type) would do.
 
 ## Build & test
 
@@ -34,19 +36,20 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
   -destination 'generic/platform=iOS Simulator' build
 ```
 
-`FoodpointKit`'s unit tests (Swift Testing) run standalone via SPM, no
-Xcode project or simulator needed — this is the fast, primary way to
-verify business-logic changes:
+Each package's unit tests (Swift Testing) run standalone via SPM, no Xcode
+project or simulator needed — this is the fast, primary way to verify
+business-logic changes:
 
 ```bash
+cd Packages/FoodFoundation && swift test
 cd Packages/FoodpointKit && swift test
 ```
 
-Run this after any change to `FoodpointKit`, and add/update tests for new
-or changed behavior — see "Testing conventions" below. There is still no
-test target for the app/view layer; verify view changes by building and,
-where practical, running the app in the simulator or on a physical device
-(see "Deploying to a device" below).
+Run the relevant package's tests after any change to it, and add/update
+tests for new or changed behavior — see "Testing conventions" below. There
+is still no test target for the app/view layer; verify view changes by
+building and, where practical, running the app in the simulator or on a
+physical device (see "Deploying to a device" below).
 
 ## Documentation is mandatory here
 
@@ -90,16 +93,21 @@ dependency" below).
     enough to warrant its own tests; state that represents saved/business
     data belongs in `AppState`, not a view model.
 
-- `Packages/FoodpointKit/` (local package, product `FoodpointKit`) — all
-  business logic, no `import SwiftUI` anywhere in it:
+- `Packages/FoodpointKit/` (local package, product `FoodpointKit`) — app
+  state and CRUD logic, no `import SwiftUI` anywhere in it. Depends on
+  `FoodFoundation` (re-exported — see below):
   - `Sources/FoodpointKit/AppState.swift` — the `@Observable` state
     container. The app uses the `AppState.shared` singleton via
     `@Environment(AppState.self)`; `init()` is public rather than private
     specifically so tests can construct isolated instances instead of
     sharing global state across test cases — always construct a fresh
-    `AppState()` in a test, never touch `.shared`. Holds the flat
-    `items: [FoodItem]` list, plus two parallel variant systems keyed by
-    barcode, each with a default (`unitConfigs`/`nutritionConfigs`,
+    `AppState()` in a test, never touch `.shared`. `@_exported import
+    FoodFoundation` at the top means any file that imports `FoodpointKit`
+    (the app included) can use `Product`, `Nutrition`, `ProductUnit`,
+    `NutritionVariant`, etc. directly without importing `FoodFoundation`
+    itself — keep that re-export if you touch this file's imports. Holds
+    the flat `items: [FoodItem]` list, plus two parallel variant systems
+    keyed by barcode, each with a default (`unitConfigs`/`nutritionConfigs`,
     persisted independently of `items` so they survive an item being fully
     consumed) and alternates (`unitVariants`/`nutritionVariants`). Go
     through the CRUD methods rather than mutating the dictionaries
@@ -123,42 +131,55 @@ dependency" below).
       `refreshNutritionVariant` (apply the user's choice from that
       prompt). See `ScannerView`'s `knownProductNutritionStatus` and
       `NutritionUpdateView` for how the app drives these.
-  - `Sources/FoodpointKit/ProductMapping.swift` — the *only* file, in the
-    app or either package, that imports `OpenFoodFactsKit` and touches its
+  - `Sources/FoodpointKit/Models/FoodItem.swift` — a saved product +
+    quantity + unit. The one model type that stays here rather than in
+    `FoodFoundation`, since it's app-state shaped (references a live
+    `Product`), not a shared domain vocabulary type.
+  - `Tests/FoodpointKitTests/` — Swift Testing (`import Testing`, `@Test`,
+    `#expect`), not XCTest. See "Testing conventions" below.
+
+- `Packages/FoodFoundation/` (local package, product `FoodFoundation`) —
+  shared domain types and product lookup, no dependency on `FoodpointKit`
+  or the app. Depends on `OpenFoodFactsKit`:
+  - `Sources/FoodFoundation/ProductLookup.swift` — the *only* file, in the
+    whole dependency graph, that imports `OpenFoodFactsKit` and touches its
     `FoodProduct`/`Nutriments` DTOs directly; everywhere else works with
-    `Product`/`Nutrition`. Also defines `AppState.lookupProduct(barcode:)`,
-    the single call `ScannerView` makes to fetch-and-map — the app itself
-    never imports `OpenFoodFactsKit`.
-  - `Sources/FoodpointKit/Models/` — Plain data types: `Product`/`Nutrition`
+    `Product`/`Nutrition`. Also defines `ProductLookup.fetch(barcode:)`,
+    a stateless call `ScannerView` (and, in future, other packages) makes
+    to fetch-and-map — nothing outside this file ever imports
+    `OpenFoodFactsKit`.
+  - `Sources/FoodFoundation/Models/` — Plain data types: `Product`/`Nutrition`
     (the app's own domain model, decoupled from OFF's wire format),
-    `FoodItem` (a saved product + quantity + unit), `ProductUnit`/
-    `UnitTrackingMode` (how a product's quantity is counted — by discrete
-    count or by weight, with the grams-per-unit math used for per-unit
-    nutrition — plus a stable `id` and user-facing `name` since a barcode
-    can have several named variants), `NutritionVariant`/`NutritionSource`
-    (a named nutrition data set tagged `.openFoodFacts` or `.custom` —
-    mirrors `ProductUnit`'s variant shape), `FoodCategory` (best-effort
-    category/icon guess from Open Food Facts tags), and `NumericInput`
-    (`String.localizedDouble` — see "Numeric text input" below).
+    `ProductUnit`/`UnitTrackingMode` (how a product's quantity is counted —
+    by discrete count or by weight, with the grams-per-unit math used for
+    per-unit nutrition — plus a stable `id` and user-facing `name` since a
+    barcode can have several named variants), `NutritionVariant`/
+    `NutritionSource` (a named nutrition data set tagged `.openFoodFacts`
+    or `.custom` — mirrors `ProductUnit`'s variant shape), `FoodCategory`
+    (best-effort category/icon guess from Open Food Facts tags), and
+    `NumericInput` (`String.localizedDouble` — see "Numeric text input"
+    below). Note: `ProductUnit`/`NutritionVariant` are the plain *types*
+    only — their per-barcode variant CRUD lives in `AppState`, not here.
     `Nutrition.isEffectivelyEmpty` (all fields nil-or-zero) is the check
     used to treat an Open-Food-Facts entry with no real data as "no data"
     instead of displaying zeroes — some OFF products carry a `nutriments`
     object with every field blank rather than omitting it.
-  - `Tests/FoodpointKitTests/` — Swift Testing (`import Testing`, `@Test`,
-    `#expect`), not XCTest. See "Testing conventions" below.
+  - `Tests/FoodFoundationTests/` — Swift Testing, same conventions as
+    `FoodpointKitTests`.
 
 - `Packages/OpenFoodFactsKit/` (local package, product `OpenFoodFactsKit`) —
   all networking and wire-format types for the Open Food Facts v2 API:
   `OpenFoodFactsService` (the client), `FoodProduct`/`Nutriments`
   (Decodable DTOs matching OFF's JSON), and `OpenFoodFactsError`. Public so
-  `FoodpointKit` can consume them, but treat them as **wire-format only** —
-  never store one on a model or pass one outside `ProductMapping.swift`.
-  Has no dependency on `FoodpointKit` (dependency direction is one-way:
-  `Foodpoint` app -> `FoodpointKit` -> `OpenFoodFactsKit`).
+  `FoodFoundation` can consume them, but treat them as **wire-format
+  only** — never store one on a model or pass one outside
+  `ProductLookup.swift`. Has no dependency on either other package
+  (dependency direction is one-way: `Foodpoint` app -> `FoodpointKit` ->
+  `FoodFoundation` -> `OpenFoodFactsKit`).
 
-Both packages build standalone (`cd Packages/<name> && swift build`), and
-are kept free of any dependency on the app target — that's what makes
-`FoodpointKit` unit-testable without a simulator.
+All three packages build standalone (`cd Packages/<name> && swift build`),
+and are kept free of any dependency on the app target — that's what makes
+them unit-testable without a simulator.
 
 ## Numeric text input
 
@@ -167,12 +188,12 @@ Never parse a user-typed number with plain `Double(someText)`. A
 locales (e.g. German) — `Double.init?(String)` only ever accepts "." and
 silently returns `nil` for "5,2", dropping the value as if never entered.
 This was a real, previously-shipped bug. Always use
-`someText.localizedDouble` (`FoodpointKit`'s `String` extension) instead,
+`someText.localizedDouble` (`FoodFoundation`'s `String` extension) instead,
 in both the app and any new package code.
 
 ## Testing conventions
 
-`FoodpointKit`'s test target uses **Swift Testing**, not XCTest —
+Every package's test target uses **Swift Testing**, not XCTest —
 `import Testing`, `@Suite`/`@Test`, `#expect(...)`/`#require(...)`, `throws`
 for tests that need to fail loudly on setup errors. Match this style for
 new tests rather than introducing XCTest.
@@ -180,26 +201,30 @@ new tests rather than introducing XCTest.
 - Construct a fresh `AppState()` per test — never share `AppState.shared`
   across tests, since it's a single mutable instance and tests may run in
   any order.
-- Test business logic (`AppState`, model computed properties/static
-  factories like `ProductUnit.make`) thoroughly; there is no view-layer
-  test target, so don't try to test SwiftUI views here.
-- `ProductMappingTests` builds `OpenFoodFactsKit.FoodProduct` fixtures by
-  decoding realistic JSON strings (`JSONDecoder().decode(FoodProduct.self,
-  from:)`) rather than a memberwise initializer — the OFF package
-  intentionally has no public memberwise init for its DTOs (only the
-  synthesized `Decodable.init(from:)`), so this is also the only test
-  approach that would actually notice a `CodingKeys` mistake.
-- When you fix a bug in `FoodpointKit`, add a regression test for it in
-  the same commit — see `NumericInputTests`'s comma-decimal test for the
-  pattern (name the test after the bug, not just the feature).
+- Test business logic (`AppState`'s CRUD in `FoodpointKitTests`; model
+  computed properties/static factories like `ProductUnit.make` in
+  `FoodFoundationTests`) thoroughly; there is no view-layer test target,
+  so don't try to test SwiftUI views here.
+- `FoodFoundationTests/ProductMappingTests.swift` builds
+  `OpenFoodFactsKit.FoodProduct` fixtures by decoding realistic JSON
+  strings (`JSONDecoder().decode(FoodProduct.self, from:)`) rather than a
+  memberwise initializer — the OFF package intentionally has no public
+  memberwise init for its DTOs (only the synthesized `Decodable.init(from:)`),
+  so this is also the only test approach that would actually notice a
+  `CodingKeys` mistake.
+- When you fix a bug, add a regression test for it in the same commit, in
+  whichever package's test target actually owns the affected code — see
+  `FoodFoundationTests/NumericInputTests.swift`'s comma-decimal test for
+  the pattern (name the test after the bug, not just the feature).
 
 ## Adding a new package dependency
 
 Adding a local Swift package to the Xcode project (a new package, not a
-new file in an existing one) requires hand-editing `project.pbxproj` —
-this project has no other packages' worth of prior art beyond
-`OpenFoodFactsKit`/`FoodpointKit` to copy from via Xcode's GUI history. The
-shape needed (see the existing `F00DFACE...` entries as a template):
+new file in an existing one) requires hand-editing `project.pbxproj` — this
+project has no packages added via Xcode's GUI to copy prior art from; the
+existing `OpenFoodFactsKit`/`FoodpointKit`/`FoodFoundation` entries (all
+hand-added the same way) are the template. The shape needed (see the
+existing `F00DFACE...` entries as a template):
 1. A `PBXBuildFile` wrapping a `productRef` (in the app target's
    `Frameworks` build phase's `files`).
 2. An `XCLocalSwiftPackageReference` (`relativePath` to the package

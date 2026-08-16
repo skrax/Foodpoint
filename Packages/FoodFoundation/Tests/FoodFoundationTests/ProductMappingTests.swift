@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import OpenFoodFactsKit
-@testable import FoodpointKit
+@testable import FoodFoundation
 
 @Suite("Product mapping from Open Food Facts")
 struct ProductMappingTests {

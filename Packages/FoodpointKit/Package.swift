@@ -8,10 +8,10 @@ let package = Package(
         .library(name: "FoodpointKit", targets: ["FoodpointKit"]),
     ],
     dependencies: [
-        .package(path: "../OpenFoodFactsKit"),
+        .package(path: "../FoodFoundation"),
     ],
     targets: [
-        .target(name: "FoodpointKit", dependencies: ["OpenFoodFactsKit"]),
-        .testTarget(name: "FoodpointKitTests", dependencies: ["FoodpointKit", "OpenFoodFactsKit"]),
+        .target(name: "FoodpointKit", dependencies: ["FoodFoundation"]),
+        .testTarget(name: "FoodpointKitTests", dependencies: ["FoodpointKit", "FoodFoundation"]),
     ]
 )

@@ -455,7 +455,7 @@ struct ScannerView: View {
         countPerPackageText = "1"
         Task {
             do {
-                let product = try await appState.lookupProduct(barcode: barcode)
+                let product = try await ProductLookup.fetch(barcode: barcode)
                 await MainActor.run {
                     self.scannedProduct = product
                     self.isLoading = false

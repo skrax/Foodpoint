@@ -2,7 +2,7 @@
 id: PA-2
 epic: package-architecture
 title: Extract FoodFoundation
-status: backlog
+status: done
 depends_on: [PA-1]
 design_doc: package-architecture.md#32-foodfoundation-new
 ---
@@ -50,14 +50,14 @@ target, same assertions.
 
 ## Acceptance criteria
 
-- [ ] `Packages/FoodFoundation` builds standalone (`swift build`)
-- [ ] All six items above moved; `FoodpointKit` no longer contains them
-- [ ] `ProductLookup.fetch` implemented and used everywhere the old
+- [x] `Packages/FoodFoundation` builds standalone (`swift build`)
+- [x] All six items above moved; `FoodpointKit` no longer contains them
+- [x] `ProductLookup.fetch` implemented and used everywhere the old
       `AppState.lookupProduct` extension was
-- [ ] `project.pbxproj` updated; app builds (simulator + device)
-- [ ] Tests migrated to `FoodFoundationTests`, all passing
-- [ ] `FoodpointKitTests` updated (migrated files removed), still passing
-- [ ] README.md / AGENTS.md updated to describe the new package
+- [x] `project.pbxproj` updated; app builds (simulator + device)
+- [x] Tests migrated to `FoodFoundationTests`, all passing
+- [x] `FoodpointKitTests` updated (migrated files removed), still passing
+- [x] README.md / AGENTS.md updated to describe the new package
 
 ## Out of scope
 

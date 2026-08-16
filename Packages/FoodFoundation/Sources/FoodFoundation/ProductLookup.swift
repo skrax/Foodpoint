@@ -2,10 +2,10 @@ import Foundation
 import OpenFoodFactsKit
 
 /// Maps Open Food Facts' wire-format types to the app's own `Product`/
-/// `Nutrition` models. This is the only file in the app's dependency graph
+/// `Nutrition` models. This is the only file in the whole dependency graph
 /// that should import `OpenFoodFactsKit` and touch its `FoodProduct`/
-/// `Nutriments` types — everywhere else (including the app target) works
-/// with `Product`/`Nutrition`.
+/// `Nutriments` types — everywhere else (including `PantryKit`, `MealKit`,
+/// and the app target) works with `Product`/`Nutrition`.
 extension Product {
     public init(offProduct: OpenFoodFactsKit.FoodProduct) {
         self.init(
@@ -34,11 +34,12 @@ extension Nutrition {
     }
 }
 
-extension AppState {
-    /// Looks up a product by barcode via Open Food Facts, mapped to the
-    /// app's own domain model. A thin wrapper so UI code (`ScannerView`)
-    /// never needs to import `OpenFoodFactsKit` directly.
-    public func lookupProduct(barcode: String) async throws -> Product {
+/// Resolves a product from Open Food Facts, mapped to the app's own domain
+/// model. Stateless and independent of any particular package's state —
+/// `PantryKit` and `MealKit` each call this directly rather than sharing a
+/// cache or going through one another (see package-architecture.md §3.2).
+public enum ProductLookup {
+    public static func fetch(barcode: String) async throws -> Product {
         let offProduct = try await OpenFoodFactsService.shared.fetchProduct(barcode: barcode)
         return Product(offProduct: offProduct)
     }

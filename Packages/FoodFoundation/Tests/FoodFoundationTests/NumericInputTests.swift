@@ -1,5 +1,5 @@
 import Testing
-@testable import FoodpointKit
+@testable import FoodFoundation
 
 @Suite("String.localizedDouble")
 struct NumericInputTests {

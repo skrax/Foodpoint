@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+@_exported import FoodFoundation
 
 /// App-wide state: the flat list of saved food items and the remembered
 /// unit configuration per barcode. The app uses the `shared` singleton via
