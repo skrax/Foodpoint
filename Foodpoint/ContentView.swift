@@ -8,6 +8,11 @@ struct ContentView : View {
                     Label("Locations", systemImage: "tray.full")
                 }
 
+            AllItemsView()
+                .tabItem {
+                    Label("All Items", systemImage: "list.bullet")
+                }
+
             ScannerView()
                 .tabItem {
                     Label("Scan", systemImage: "barcode.viewfinder")
