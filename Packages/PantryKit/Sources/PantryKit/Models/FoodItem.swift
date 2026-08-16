@@ -1,11 +1,12 @@
 import Foundation
+import FoodFoundation
 
 /// A product the user has saved, with how much of it remains.
 ///
-/// One `FoodItem` exists per barcode in `AppState.items` — re-scanning the
-/// same barcode increments `quantity` rather than creating a duplicate.
+/// One `FoodItem` exists per barcode in `PantryStore.items` — re-scanning
+/// the same barcode increments `quantity` rather than creating a duplicate.
 public struct FoodItem: Identifiable {
-    /// The product's barcode, also used as `AppState.unitConfigs`'s key.
+    /// The product's barcode, also used as `PantryStore.unitConfigs`'s key.
     public let id: String
     public var product: Product
     /// Amount remaining, expressed in `unit.label` (e.g. 12 "bars", 650 "g").

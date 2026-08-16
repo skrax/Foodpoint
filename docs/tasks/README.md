@@ -63,8 +63,8 @@ Prerequisite for meals; no new user-facing behavior. See
 | [PA-1](epic-1-package-architecture/PA-1-rename-openfoodfacts-kit.md) | Rename OpenFoodFacts → OpenFoodFactsKit | done | — |
 | [PA-2](epic-1-package-architecture/PA-2-extract-food-foundation.md) | Extract FoodFoundation | done | PA-1 |
 | [PA-3](epic-1-package-architecture/PA-3-add-product-search.md) | Add product search (no-barcode acquisition) | ready | PA-2 |
-| [PA-4](epic-1-package-architecture/PA-4-extract-pantry-kit.md) | Extract PantryKit | ready | PA-2 |
-| [PA-5](epic-1-package-architecture/PA-5-slim-foodpoint-kit.md) | Slim FoodpointKit to a composition root | backlog | PA-4 |
+| [PA-4](epic-1-package-architecture/PA-4-extract-pantry-kit.md) | Extract PantryKit | done | PA-2 |
+| [PA-5](epic-1-package-architecture/PA-5-slim-foodpoint-kit.md) | Slim FoodpointKit to a composition root | ready | PA-4 |
 
 ## Epic 2 — Meals Feature
 
@@ -83,8 +83,12 @@ MK-1 only strictly needs PA-5 + PA-3.
 
 ## What's next
 
-**PA-1 and PA-2 are done.** **PA-3** and **PA-4** are both now unblocked
-and independent of each other — either can go next, or both in parallel.
-PA-5 still waits on PA-4. Epic 2 fans out from MK-3 once the core loop
-exists — MK-4, MK-5, and MK-6 don't depend on each other and can happen in
-any order (or in parallel) once MK-3 is done.
+**PA-1, PA-2, and PA-4 are done.** **PA-3** and **PA-5** are both
+unblocked. **The app target doesn't build right now** — PA-4 emptied
+`AppState` on purpose (its content moved to `PantryStore`), and nothing
+wires `PantryStore` back into the views yet. That's expected and is
+exactly PA-5's job; the task notes call out PA-4/PA-5 as meant to be done
+back-to-back even though tracked separately. PA-3 is independent of this
+and can happen before, after, or interleaved with PA-5. Epic 2 fans out
+from MK-3 once the core loop exists — MK-4, MK-5, and MK-6 don't depend on
+each other and can happen in any order (or in parallel) once MK-3 is done.

@@ -1,9 +1,10 @@
 import Foundation
 import Testing
-@testable import FoodpointKit
+import FoodFoundation
+@testable import PantryKit
 
-@Suite("AppState")
-struct AppStateTests {
+@Suite("PantryStore")
+struct PantryStoreTests {
     private let barcode = "0000000001"
 
     private func product(nutrition: Nutrition? = nil) -> Product {
@@ -22,7 +23,7 @@ struct AppStateTests {
 
     @Test("adding a brand-new barcode creates one item with the package quantity")
     func addProductCreatesNewItem() {
-        let state = AppState()
+        let state = PantryStore()
         state.addProduct(product(), unit: unit(quantityPerPackage: 20))
 
         #expect(state.items.count == 1)
@@ -32,7 +33,7 @@ struct AppStateTests {
 
     @Test("re-adding a known barcode increments quantity instead of duplicating")
     func addProductIncrementsExistingItem() {
-        let state = AppState()
+        let state = PantryStore()
         state.addProduct(product(), unit: unit(quantityPerPackage: 20))
         state.addProduct(product(), unit: unit(quantityPerPackage: 20))
 
@@ -42,7 +43,7 @@ struct AppStateTests {
 
     @Test("the unit passed on first save becomes the default, later scans don't overwrite it")
     func addProductEstablishesDefaultUnitOnce() {
-        let state = AppState()
+        let state = PantryStore()
         state.addProduct(product(), unit: unit(quantityPerPackage: 20))
         state.addProduct(product(), unit: unit(quantityPerPackage: 999)) // different unit, ignored for default purposes
 
@@ -51,7 +52,7 @@ struct AppStateTests {
 
     @Test("non-empty Open Food Facts nutrition becomes the default on first save")
     func addProductEstablishesNutritionWhenNonEmpty() {
-        let state = AppState()
+        let state = PantryStore()
         state.addProduct(product(nutrition: nutrition()), unit: unit())
 
         #expect(state.nutritionConfigs[barcode]?.source == .openFoodFacts)
@@ -61,7 +62,7 @@ struct AppStateTests {
 
     @Test("empty Open Food Facts nutrition does not establish a default")
     func addProductSkipsEmptyNutrition() {
-        let state = AppState()
+        let state = PantryStore()
         let empty = Nutrition(energyKcal100g: 0, proteins100g: 0, carbohydrates100g: 0, fat100g: 0, sugars100g: 0, fiber100g: 0, sodium100g: 0)
         state.addProduct(product(nutrition: empty), unit: unit())
 
@@ -71,7 +72,7 @@ struct AppStateTests {
 
     @Test("a pre-existing default nutrition variant is not overwritten by a later scan's Open Food Facts data")
     func addProductDoesNotOverwriteExistingNutritionDefault() {
-        let state = AppState()
+        let state = PantryStore()
         state.addProduct(product(), unit: unit())
         let custom = NutritionVariant(name: "My Values", nutrition: nutrition(calories: 300), source: .custom)
         state.setDefaultNutritionVariant(custom, forBarcode: barcode)
@@ -86,7 +87,7 @@ struct AppStateTests {
 
     @Test("setting quantity to zero or below removes the item")
     func setQuantityToZeroRemovesItem() {
-        let state = AppState()
+        let state = PantryStore()
         state.addProduct(product(), unit: unit())
         state.setQuantity(0, forItemID: barcode)
         #expect(state.items.isEmpty)
@@ -94,7 +95,7 @@ struct AppStateTests {
 
     @Test("setting a positive quantity updates it in place")
     func setQuantityUpdatesInPlace() {
-        let state = AppState()
+        let state = PantryStore()
         state.addProduct(product(), unit: unit())
         state.setQuantity(7, forItemID: barcode)
         #expect(state.items.first?.quantity == 7)
@@ -104,7 +105,7 @@ struct AppStateTests {
 
     @Test("addUnitVariant, updateVariant, removeVariant, makeDefault")
     func packageVariantLifecycle() {
-        let state = AppState()
+        let state = PantryStore()
         state.addProduct(product(), unit: unit(quantityPerPackage: 15)) // becomes default
 
         let small = ProductUnit(name: "Small", label: "bars", quantityPerPackage: 10, gramsPerUnit: 40)
@@ -134,7 +135,7 @@ struct AppStateTests {
 
     @Test("renameUnitLabel updates the default, every alternate, and the active item's unit at once")
     func renameUnitLabelUpdatesEveryVariant() {
-        let state = AppState()
+        let state = PantryStore()
         state.addProduct(product(), unit: unit(quantityPerPackage: 15)) // becomes default, label "bars"
 
         let small = ProductUnit(name: "Small", label: "bars", quantityPerPackage: 10, gramsPerUnit: 40)
@@ -149,7 +150,7 @@ struct AppStateTests {
 
     @Test("renameUnitLabel is a no-op for weight-tracked units")
     func renameUnitLabelNoOpForWeightTracked() {
-        let state = AppState()
+        let state = PantryStore()
         let weightUnit = ProductUnit(label: "g", quantityPerPackage: 500, gramsPerUnit: 1)
         state.addProduct(product(), unit: weightUnit)
 
@@ -160,7 +161,7 @@ struct AppStateTests {
 
     @Test("updateVariant refreshes the saved item's unit when it's the active one")
     func updateVariantSyncsActiveItem() {
-        let state = AppState()
+        let state = PantryStore()
         state.addProduct(product(), unit: unit(quantityPerPackage: 15))
         var updated = state.unitConfigs[barcode]!
         updated.gramsPerUnit = 55
@@ -172,7 +173,7 @@ struct AppStateTests {
 
     @Test("addNutritionVariant, updateNutritionVariant, removeNutritionVariant, makeNutritionDefault mirror the package-variant lifecycle")
     func nutritionVariantLifecycle() {
-        let state = AppState()
+        let state = PantryStore()
         state.addProduct(product(nutrition: nutrition()), unit: unit()) // OFF variant becomes default
 
         let custom = NutritionVariant(name: "My Values", nutrition: nutrition(calories: 300), source: .custom)
@@ -191,7 +192,7 @@ struct AppStateTests {
 
     @Test("setDefaultNutritionVariant demotes the previous default rather than discarding it")
     func setDefaultNutritionVariantPreservesPrevious() {
-        let state = AppState()
+        let state = PantryStore()
         state.addProduct(product(nutrition: nutrition()), unit: unit())
         let offID = state.nutritionConfigs[barcode]!.id
 
@@ -204,7 +205,7 @@ struct AppStateTests {
 
     @Test("refreshNutritionVariant updates the default in place without changing which is default")
     func refreshNutritionVariantUpdatesDefaultInPlace() {
-        let state = AppState()
+        let state = PantryStore()
         state.addProduct(product(nutrition: nutrition(calories: 250)), unit: unit())
         let offID = state.nutritionConfigs[barcode]!.id
 
@@ -217,7 +218,7 @@ struct AppStateTests {
 
     @Test("refreshNutritionVariant appends an unknown variant as an alternate without touching the default")
     func refreshNutritionVariantAppendsUnknownAsAlternate() {
-        let state = AppState()
+        let state = PantryStore()
         let custom = NutritionVariant(name: "My Values", nutrition: nutrition(calories: 300), source: .custom)
         state.addProduct(product(), unit: unit())
         state.setDefaultNutritionVariant(custom, forBarcode: barcode)
@@ -233,7 +234,7 @@ struct AppStateTests {
 
     @Test("nil/empty Open Food Facts data has nothing pending")
     func pendingUpdateNilForEmptyData() {
-        let state = AppState()
+        let state = PantryStore()
         #expect(state.pendingNutritionUpdate(from: nil, forBarcode: barcode) == nil)
 
         let empty = Nutrition(energyKcal100g: 0, proteins100g: nil, carbohydrates100g: nil, fat100g: nil, sugars100g: nil, fiber100g: nil, sodium100g: nil)
@@ -242,14 +243,14 @@ struct AppStateTests {
 
     @Test("matching what's already remembered has nothing pending")
     func pendingUpdateNilWhenUnchanged() {
-        let state = AppState()
+        let state = PantryStore()
         state.addProduct(product(nutrition: nutrition()), unit: unit())
         #expect(state.pendingNutritionUpdate(from: nutrition(), forBarcode: barcode) == nil)
     }
 
     @Test("new or changed Open Food Facts data is offered as a pending update")
     func pendingUpdateNonNilWhenChanged() {
-        let state = AppState()
+        let state = PantryStore()
         state.addProduct(product(nutrition: nutrition(calories: 250)), unit: unit())
         let update = state.pendingNutritionUpdate(from: nutrition(calories: 999), forBarcode: barcode)
         #expect(update?.nutrition.energyKcal100g == 999)
@@ -259,7 +260,7 @@ struct AppStateTests {
 
     @Test("a barcode with no stored data yet still offers first-time Open Food Facts data")
     func pendingUpdateForFirstTimeData() {
-        let state = AppState()
+        let state = PantryStore()
         let update = state.pendingNutritionUpdate(from: nutrition(), forBarcode: barcode)
         #expect(update?.nutrition.energyKcal100g == 250)
     }

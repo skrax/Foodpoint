@@ -12,6 +12,8 @@ let package = Package(
     ],
     targets: [
         .target(name: "FoodpointKit", dependencies: ["FoodFoundation"]),
-        .testTarget(name: "FoodpointKitTests", dependencies: ["FoodpointKit", "FoodFoundation"]),
+        // No test target for now: AppState's logic moved to PantryKit (PA-4)
+        // and there's nothing left here worth testing until PA-5 adds real
+        // composition-root/orchestration logic. Re-add FoodpointKitTests then.
     ]
 )

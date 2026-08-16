@@ -10,6 +10,7 @@
 		F00DFACE0000000000000003 /* OpenFoodFactsKit in Frameworks */ = {isa = PBXBuildFile; productRef = F00DFACE0000000000000002 /* OpenFoodFactsKit */; };
 		F00DFACE0000000000000004 /* FoodpointKit in Frameworks */ = {isa = PBXBuildFile; productRef = F00DFACE0000000000000006 /* FoodpointKit */; };
 		F00DFACE0000000000000007 /* FoodFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = F00DFACE0000000000000009 /* FoodFoundation */; };
+		F00DFACE0000000000000010 /* PantryKit in Frameworks */ = {isa = PBXBuildFile; productRef = F00DFACE0000000000000012 /* PantryKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +33,7 @@
 				F00DFACE0000000000000003 /* OpenFoodFactsKit in Frameworks */,
 				F00DFACE0000000000000004 /* FoodpointKit in Frameworks */,
 				F00DFACE0000000000000007 /* FoodFoundation in Frameworks */,
+				F00DFACE0000000000000010 /* PantryKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -77,6 +79,7 @@
 				F00DFACE0000000000000002 /* OpenFoodFactsKit */,
 				F00DFACE0000000000000006 /* FoodpointKit */,
 				F00DFACE0000000000000009 /* FoodFoundation */,
+				F00DFACE0000000000000012 /* PantryKit */,
 			);
 			productName = Foodpoint;
 			productReference = 75B7F71630210B210054EADC /* Foodpoint.app */;
@@ -110,6 +113,7 @@
 				F00DFACE0000000000000001 /* XCLocalSwiftPackageReference "Packages/OpenFoodFactsKit" */,
 				F00DFACE0000000000000005 /* XCLocalSwiftPackageReference "Packages/FoodpointKit" */,
 				F00DFACE0000000000000008 /* XCLocalSwiftPackageReference "Packages/FoodFoundation" */,
+				F00DFACE0000000000000011 /* XCLocalSwiftPackageReference "Packages/PantryKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 75B7F71730210B210054EADC /* Products */;
@@ -365,6 +369,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/FoodFoundation;
 		};
+		F00DFACE0000000000000011 /* XCLocalSwiftPackageReference "Packages/PantryKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/PantryKit;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -382,6 +390,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = F00DFACE0000000000000008 /* XCLocalSwiftPackageReference "Packages/FoodFoundation" */;
 			productName = FoodFoundation;
+		};
+		F00DFACE0000000000000012 /* PantryKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F00DFACE0000000000000011 /* XCLocalSwiftPackageReference "Packages/PantryKit" */;
+			productName = PantryKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

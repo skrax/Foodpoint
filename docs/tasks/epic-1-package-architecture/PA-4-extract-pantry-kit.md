@@ -2,7 +2,7 @@
 id: PA-4
 epic: package-architecture
 title: Extract PantryKit
-status: backlog
+status: done
 depends_on: [PA-2]
 design_doc: package-architecture.md#33-pantrykit-new--most-of-todays-appstate
 ---
@@ -41,12 +41,31 @@ tracked as separate tasks.
 
 ## Acceptance criteria
 
-- [ ] `Packages/PantryKit` builds standalone
-- [ ] `FoodItem` moved
-- [ ] `PantryStore` holds all pantry state + CRUD, unchanged logic
-- [ ] `PantryStore` resolves products via `FoodFoundation.ProductLookup.fetch`
-- [ ] `project.pbxproj` updated; package graph resolves
-- [ ] Tests migrated to `PantryKitTests`, same coverage, all passing
+- [x] `Packages/PantryKit` builds standalone
+- [x] `FoodItem` moved
+- [x] `PantryStore` holds all pantry state + CRUD, unchanged logic
+- [x] `PantryStore` resolves products via `FoodFoundation.ProductLookup.fetch` —
+      moot in practice: nothing in `PantryStore`'s own logic calls a lookup
+      (that already fully moved to the app layer/`ScannerView` in PA-2, which
+      calls `ProductLookup.fetch` directly and hands `PantryStore.addProduct`
+      an already-resolved `Product`). No code added to force this literally.
+- [x] `project.pbxproj` updated; package graph resolves — confirmed via a
+      full app build: it fails only on the views' now-missing `AppState`
+      members (expected, PA-5's job), not on package resolution.
+- [x] Tests migrated to `PantryKitTests`, same coverage (20 tests), all passing
+
+Additional cleanup beyond the original scope, needed to keep things green:
+`FoodpointKit`'s `AppState.swift` reduced to an empty shell (all content
+moved out, none of it duplicated); `FoodpointKitTests` target removed from
+`Package.swift` since it had zero source files left and `swift test` hard errors
+on an empty target (`swift build` only warns) — it'll return in PA-5 once
+there's composition-root logic worth testing again.
+
+**README.md / AGENTS.md intentionally not updated in this task** — they'd
+have to describe a deliberately transient, about-to-be-wrong state
+(`PantryKit` existing but `AppState` an empty shell nothing uses yet).
+Doing one accurate doc pass after PA-5 lands, covering PA-4+PA-5 together,
+avoids writing docs that would already be stale a few minutes later.
 
 ## Out of scope
 
