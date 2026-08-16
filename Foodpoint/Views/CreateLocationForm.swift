@@ -2,13 +2,21 @@ import SwiftUI
 
 struct CreateLocationForm: View {
     var onSave: (String) -> Void
-    @State private var name = ""
+    @State private var viewModel = CreateLocationFormViewModel()
     @Environment(\.dismiss) private var dismiss
-    
+
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Name", text: $name)
+                TextField("Name", text: $viewModel.name, prompt: Text("Required"))
+                    .onSubmit {
+                        trySave()
+                    }
+                if let errorMessage = viewModel.errorMessage {
+                    Text(errorMessage)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -18,11 +26,20 @@ struct CreateLocationForm: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        onSave(name)
-                        dismiss()
+                        trySave()
                     }
                 }
             }
         }
     }
+
+    private func trySave() {
+        if viewModel.save(onSave: onSave) {
+            dismiss()
+        }
+    }
+}
+
+#Preview {
+    CreateLocationForm { _ in }
 }
