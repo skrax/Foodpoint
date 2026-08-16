@@ -11,6 +11,16 @@ import SwiftUI
 /// "Scan" tab: scan a barcode, look up the product on Open Food Facts, and
 /// either save it (into the flat item list, configuring its unit first if
 /// this barcode has never been saved before) or discard it and scan again.
+///
+/// For a barcode that's already configured, the package-size fields are
+/// still shown (pre-filled from the saved config) rather than a static
+/// summary, so a different-sized package of the same product (e.g. a 500g
+/// bag instead of the usual 750g) can be entered directly. The unit's
+/// tracking mode and label can't change per scan — only the package weight,
+/// with the count (if count-tracked) recomputed from it using the existing
+/// grams-per-unit. If the edited size doesn't match any package size
+/// already known for this barcode, saving asks whether to remember it as a
+/// selectable variant for next time, or use it just this once.
 struct ScannerView: View {
     private enum UnitField: Hashable {
         case packageWeight, countLabel, countPerPackage
@@ -24,13 +34,18 @@ struct ScannerView: View {
     /// Whether the currently displayed `scannedProduct` has been saved yet.
     @State private var didSave = false
     /// Whether `scannedProduct`'s barcode has no remembered unit config yet,
-    /// i.e. whether to show `unitConfigFields` before it can be saved.
+    /// i.e. whether to show the fully-editable `unitConfigFields` (label,
+    /// mode, and weight all free) instead of `knownUnitFields` (weight only).
     @State private var isNewProduct = false
     @State private var unitMode: UnitTrackingMode = .count
     @State private var packageWeightText = ""
     @State private var countLabelText = "items"
     @State private var countPerPackageText = "1"
     @FocusState private var focusedUnitField: UnitField?
+    /// A package-size edit that doesn't match any variant already known for
+    /// this barcode, awaiting the user's choice of whether to remember it.
+    @State private var pendingUnit: ProductUnit?
+    @State private var isShowingVariantPrompt = false
 
     /// Whether the "Save" / "Scan Without Saving" pair should replace the
     /// plain "Scan Food Barcode" button.
@@ -52,6 +67,8 @@ struct ScannerView: View {
                             .foregroundStyle(.green)
                     } else if isNewProduct {
                         unitConfigFields
+                    } else {
+                        knownUnitFields(for: product)
                     }
                 } else if let error = errorMessage {
                     ContentUnavailableView("Scan Failed", systemImage: "exclamationmark.triangle", description: Text(error))
@@ -112,6 +129,17 @@ struct ScannerView: View {
                         .ignoresSafeArea()
                 }
             }
+            .confirmationDialog(
+                "New Package Size",
+                isPresented: $isShowingVariantPrompt,
+                presenting: pendingUnit
+            ) { unit in
+                Button("Save as a New Variant") { confirmSave(unit, storeVariant: true) }
+                Button("Just This Once") { confirmSave(unit, storeVariant: false) }
+                Button("Cancel", role: .cancel) { pendingUnit = nil }
+            } message: { unit in
+                Text(variantPromptMessage(for: unit))
+            }
         }
     }
 
@@ -167,12 +195,153 @@ struct ScannerView: View {
         return "≈ \(grams) g per \(label)"
     }
 
-    /// Saves the current product, then immediately reopens the scanner for the next one.
+    /// Package-size fields for an already-configured barcode: mode and label
+    /// are shown but locked, only the weight is editable, and (for
+    /// count-tracked units) the resulting count is derived and displayed
+    /// read-only using the barcode's fixed grams-per-unit. A menu to jump to
+    /// any previously-remembered variant appears once more than one exists.
+    private func knownUnitFields(for product: FoodProduct) -> some View {
+        let base = appState.unitConfigs[product.barcode]
+        return VStack(spacing: 8) {
+            Text("Package size")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Picker("Tracking", selection: .constant(base?.trackingMode ?? .count)) {
+                ForEach(UnitTrackingMode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .disabled(true)
+
+            let variants = knownVariants(for: product.barcode)
+            if variants.count > 1 {
+                Menu {
+                    ForEach(variants.indices, id: \.self) { index in
+                        Button(variantDescription(variants[index])) {
+                            selectKnownVariant(variants[index])
+                        }
+                    }
+                } label: {
+                    Label("Choose a saved package size", systemImage: "chevron.up.chevron.down")
+                        .font(.caption)
+                }
+            }
+
+            TextField("Bag/package weight (g)", text: $packageWeightText)
+                .textFieldStyle(.roundedBorder)
+                .keyboardType(.decimalPad)
+                .focused($focusedUnitField, equals: .packageWeight)
+
+            if base?.trackingMode == .count {
+                HStack {
+                    Text("\(base?.label ?? "items"):")
+                        .foregroundStyle(.secondary)
+                    Text(derivedCountText(gramsPerUnit: base?.gramsPerUnit))
+                        .fontWeight(.semibold)
+                }
+                .font(.subheadline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    /// Count derived from `packageWeightText` using the barcode's fixed
+    /// grams-per-unit — e.g. typing "500" with a 50g/slice ratio shows "10".
+    private func derivedCountText(gramsPerUnit: Double?) -> String {
+        guard let gramsPerUnit, gramsPerUnit > 0,
+              let weight = Double(packageWeightText), weight > 0 else { return "—" }
+        return (weight / gramsPerUnit).formatted(.number.precision(.fractionLength(0...2)))
+    }
+
+    /// All package sizes known for a barcode: its default config first,
+    /// then any remembered variants.
+    private func knownVariants(for barcode: String) -> [ProductUnit] {
+        var list: [ProductUnit] = []
+        if let base = appState.unitConfigs[barcode] { list.append(base) }
+        list.append(contentsOf: appState.unitVariants[barcode] ?? [])
+        return list
+    }
+
+    private func selectKnownVariant(_ variant: ProductUnit) {
+        packageWeightText = variant.packageWeight.map {
+            $0.formatted(.number.precision(.fractionLength(0...2)))
+        } ?? ""
+    }
+
+    private func variantDescription(_ variant: ProductUnit) -> String {
+        let weight = (variant.packageWeight ?? variant.quantityPerPackage).formatted(.number.precision(.fractionLength(0...2)))
+        switch variant.trackingMode {
+        case .weight:
+            return "\(weight) g"
+        case .count:
+            let count = variant.quantityPerPackage.formatted(.number.precision(.fractionLength(0...2)))
+            return "\(weight) g (\(count) \(variant.label))"
+        }
+    }
+
+    /// Builds the `ProductUnit` implied by the current weight field, reusing
+    /// the barcode's fixed label/grams-per-unit — the parts of the unit that
+    /// can't change per scan.
+    private func candidateUnit(for product: FoodProduct) -> ProductUnit? {
+        guard let base = appState.unitConfigs[product.barcode],
+              let weight = Double(packageWeightText), weight > 0 else { return nil }
+        switch base.trackingMode {
+        case .weight:
+            return ProductUnit(label: "g", quantityPerPackage: weight, gramsPerUnit: 1)
+        case .count:
+            guard let gramsPerUnit = base.gramsPerUnit, gramsPerUnit > 0 else { return base }
+            return ProductUnit(label: base.label, quantityPerPackage: weight / gramsPerUnit, gramsPerUnit: gramsPerUnit)
+        }
+    }
+
+    /// A known variant whose quantity matches `candidate`, if any — saving
+    /// reuses it as-is rather than the freshly-typed (and float-rounded) value.
+    private func matchingKnownVariant(_ candidate: ProductUnit, for barcode: String) -> ProductUnit? {
+        knownVariants(for: barcode).first { abs($0.quantityPerPackage - candidate.quantityPerPackage) < 0.01 }
+    }
+
+    private func variantPromptMessage(for unit: ProductUnit) -> String {
+        "\(variantDescription(unit)) isn't a saved package size yet. Remember it so you can pick it again on a future scan?"
+    }
+
+    /// Saves the current product, then immediately reopens the scanner for
+    /// the next one. For a known barcode whose edited package size doesn't
+    /// match anything already remembered, defers to `confirmSave` via the
+    /// variant-prompt dialog instead of saving immediately.
     private func save() {
         guard let product = scannedProduct else { return }
-        let unit = isNewProduct ? unitFromFields() : nil
+
+        if isNewProduct {
+            appState.addProduct(product, unit: unitFromFields())
+            didSave = true
+            scanAgain()
+            return
+        }
+
+        guard let candidate = candidateUnit(for: product) else { return }
+        if let matched = matchingKnownVariant(candidate, for: product.barcode) {
+            appState.addProduct(product, unit: matched)
+            didSave = true
+            scanAgain()
+        } else {
+            pendingUnit = candidate
+            isShowingVariantPrompt = true
+        }
+    }
+
+    /// Completes a save that was held pending a variant-prompt decision.
+    private func confirmSave(_ unit: ProductUnit, storeVariant: Bool) {
+        guard let product = scannedProduct else { return }
+        if storeVariant {
+            appState.addUnitVariant(unit, forBarcode: product.barcode)
+        }
         appState.addProduct(product, unit: unit)
         didSave = true
+        pendingUnit = nil
         scanAgain()
     }
 
@@ -181,7 +350,7 @@ struct ScannerView: View {
         isShowingScanner = true
     }
 
-    /// Builds a `ProductUnit` from the config form's current input.
+    /// Builds a `ProductUnit` from the new-product config form's current input.
     private func unitFromFields() -> ProductUnit {
         ProductUnit.make(
             mode: unitMode,
@@ -194,6 +363,7 @@ struct ScannerView: View {
     private func fetchFoodData(for barcode: String) {
         isLoading = true
         didSave = false
+        pendingUnit = nil
         unitMode = .count
         packageWeightText = ""
         countLabelText = "items"
@@ -204,7 +374,14 @@ struct ScannerView: View {
                 await MainActor.run {
                     self.scannedProduct = product
                     self.isLoading = false
-                    self.isNewProduct = appState.unitConfigs[barcode] == nil
+                    if let base = appState.unitConfigs[barcode] {
+                        self.isNewProduct = false
+                        self.packageWeightText = base.packageWeight.map {
+                            $0.formatted(.number.precision(.fractionLength(0...2)))
+                        } ?? ""
+                    } else {
+                        self.isNewProduct = true
+                    }
                 }
             } catch {
                 await MainActor.run {

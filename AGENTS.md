@@ -51,9 +51,11 @@ needed when adding a new file.
 
 - `Foodpoint/State/` — Global, app-wide state. `AppState` is an
   `@Observable` singleton (`AppState.shared`) accessed via
-  `@Environment(AppState.self)`. Holds the flat `items: [FoodItem]` list
-  and `unitConfigs` (per-barcode `ProductUnit`, persisted independently of
-  `items` so it survives an item being fully consumed).
+  `@Environment(AppState.self)`. Holds the flat `items: [FoodItem]` list,
+  `unitConfigs` (each barcode's default `ProductUnit`, persisted
+  independently of `items` so it survives an item being fully consumed),
+  and `unitVariants` (additional remembered package sizes per barcode —
+  see `ScannerView`'s variant-prompt flow).
 - `Foodpoint/Models/` — Plain data types: `FoodItem` (a saved product +
   quantity + unit), `ProductUnit`/`UnitTrackingMode` (how a product's
   quantity is counted — by discrete count or by weight — with the

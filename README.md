@@ -13,6 +13,13 @@ When a product is tracked by count with a known package weight, nutrition
 facts are also shown per count-unit (e.g. "Nutrition per bar (40g)"), not
 just Open Food Facts' raw per-100g figures.
 
+Re-scanning a barcode that's already configured shows the package-size
+fields again (not just a static summary) so a different-sized package of
+the same product can be entered directly — e.g. a 500g bag instead of the
+usual 750g, with the slice count recomputed automatically. If that size
+isn't already known for this barcode, saving asks whether to remember it
+as a selectable variant for next time, or use it just this once.
+
 This is an early solo prototype — expect rough edges and missing features.
 
 ## Stack
