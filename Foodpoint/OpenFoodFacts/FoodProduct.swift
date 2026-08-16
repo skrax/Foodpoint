@@ -18,6 +18,7 @@ struct FoodProduct: Decodable, Identifiable {
     let nutriScoreGrade: String?
     let ingredientsText: String?
     let nutriments: Nutriments?
+    let categoriesTags: [String]?
 
     enum CodingKeys: String, CodingKey {
         case barcode = "code"
@@ -28,5 +29,6 @@ struct FoodProduct: Decodable, Identifiable {
         case nutriScoreGrade = "nutriscore_grade"
         case ingredientsText = "ingredients_text"
         case nutriments
+        case categoriesTags = "categories_tags"
     }
 }

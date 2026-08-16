@@ -6,6 +6,9 @@ struct ProductRow: View {
 
     var body: some View {
         HStack {
+            Image(systemName: product.category.icon)
+                .foregroundStyle(.secondary)
+                .frame(width: 24)
             VStack(alignment: .leading) {
                 Text(product.productName ?? "Unknown Product")
                     .font(.headline)

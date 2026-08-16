@@ -33,14 +33,24 @@ struct ProductDetailCard: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
-                    if let score = product.nutriScoreGrade?.uppercased() {
-                        Text("Nutri-Score: \(score)")
+                    HStack(spacing: 6) {
+                        Label(product.category.rawValue, systemImage: product.category.icon)
                             .font(.caption)
                             .fontWeight(.bold)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Color.green.opacity(0.2))
+                            .background(Color.accentColor.opacity(0.2))
                             .cornerRadius(4)
+
+                        if let score = product.nutriScoreGrade?.uppercased() {
+                            Text("Nutri-Score: \(score)")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.green.opacity(0.2))
+                                .cornerRadius(4)
+                        }
                     }
                 }
             }
