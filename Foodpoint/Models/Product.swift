@@ -11,7 +11,10 @@ struct Product: Identifiable {
     let imageURL: URL?
     let nutriScoreGrade: String?
     let categoriesTags: [String]
-    let nutrition: Nutrition?
+    /// Mutable so `AppState` can keep it in sync with whichever
+    /// `NutritionVariant` is currently the barcode's default (Open Food
+    /// Facts' figures, or the user's own).
+    var nutrition: Nutrition?
 }
 
 /// Nutrition facts, per 100g of product (or, after `scaled(by:)`, per

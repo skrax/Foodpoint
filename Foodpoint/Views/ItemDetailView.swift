@@ -13,6 +13,7 @@ struct ItemDetailView: View {
 
     @State private var quantityText = ""
     @State private var isShowingVariantManager = false
+    @State private var isShowingNutritionManager = false
 
     private var item: FoodItem? {
         appState.items.first { $0.id == itemID }
@@ -22,7 +23,7 @@ struct ItemDetailView: View {
         ScrollView {
             VStack(spacing: 16) {
                 if let item {
-                    ProductDetailCard(product: item.product)
+                    ProductDetailCard(product: item.product, nutritionSource: appState.nutritionConfigs[item.id]?.source)
 
                     if let grams = item.unit.gramsPerUnit, let perUnit = nutritionPerUnit(for: item) {
                         nutritionPerUnitSection(perUnit, label: item.unit.label, grams: grams)
@@ -30,12 +31,21 @@ struct ItemDetailView: View {
 
                     quantitySection(for: item)
 
-                    Button {
-                        isShowingVariantManager = true
-                    } label: {
-                        Label("Package Sizes", systemImage: "shippingbox")
+                    HStack {
+                        Button {
+                            isShowingVariantManager = true
+                        } label: {
+                            Label("Package Sizes", systemImage: "shippingbox")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button {
+                            isShowingNutritionManager = true
+                        } label: {
+                            Label("Nutrition", systemImage: "chart.bar.doc.horizontal")
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .buttonStyle(.bordered)
                 }
             }
             .padding(.bottom)
@@ -52,7 +62,7 @@ struct ItemDetailView: View {
             if let item { quantityText = formatted(item.quantity) }
         }
         .onChange(of: isQuantityFocused) { _, focused in
-            if !focused, let value = Double(quantityText) {
+            if !focused, let value = quantityText.localizedDouble {
                 appState.setQuantity(value, forItemID: itemID)
             }
         }
@@ -61,6 +71,9 @@ struct ItemDetailView: View {
         }
         .sheet(isPresented: $isShowingVariantManager) {
             PackageVariantsView(barcode: itemID, mode: .manage)
+        }
+        .sheet(isPresented: $isShowingNutritionManager) {
+            NutritionVariantsView(barcode: itemID)
         }
     }
 

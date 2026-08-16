@@ -52,22 +52,37 @@ needed when adding a new file.
 - `Foodpoint/State/` — Global, app-wide state. `AppState` is an
   `@Observable` singleton (`AppState.shared`) accessed via
   `@Environment(AppState.self)`. Holds the flat `items: [FoodItem]` list,
-  `unitConfigs` (each barcode's default `ProductUnit`, persisted
-  independently of `items` so it survives an item being fully consumed),
-  and `unitVariants` (additional named package-size variants per barcode).
-  `allVariants(forBarcode:)`, `addUnitVariant(_:forBarcode:)`,
-  `updateVariant(_:forBarcode:)`, and `removeVariant(_:forBarcode:)` are the
-  CRUD surface for variants — go through these rather than mutating
-  `unitConfigs`/`unitVariants` directly, since the default lives in a
-  different dictionary than the rest and `removeVariant` guards against
-  deleting it.
+  plus two parallel variant systems keyed by barcode, each with a default
+  (`unitConfigs`/`nutritionConfigs`, persisted independently of `items` so
+  they survive an item being fully consumed) and alternates
+  (`unitVariants`/`nutritionVariants`). Go through the CRUD methods rather
+  than mutating the dictionaries directly:
+  - Package sizes: `allVariants(forBarcode:)`, `addUnitVariant(_:forBarcode:)`,
+    `updateVariant(_:forBarcode:)`, `removeVariant(_:forBarcode:)` (guards
+    against deleting the default), `makeDefault(_:forBarcode:)`.
+  - Nutrition: the same five methods with a `Nutrition`-suffixed/-infixed
+    name (`allNutritionVariants`, `addNutritionVariant`,
+    `updateNutritionVariant`, `removeNutritionVariant`,
+    `makeNutritionDefault`), plus two specific to reconciling with Open Food
+    Facts on re-scan: `pendingNutritionUpdate(from:forBarcode:)` (decides
+    whether OFF's freshly-fetched data is new/changed enough to ask about —
+    `nil` if it's missing, all-zero, or unchanged from what's remembered)
+    and `setDefaultNutritionVariant`/`refreshNutritionVariant` (apply the
+    user's choice from that prompt). See `ScannerView`'s
+    `knownProductNutritionStatus` and `NutritionUpdateView`.
 - `Foodpoint/Models/` — Plain data types: `Product`/`Nutrition` (the app's
   own domain model — see "OpenFoodFacts package" below), `FoodItem` (a
   saved product + quantity + unit), `ProductUnit`/`UnitTrackingMode` (how a
   product's quantity is counted — by discrete count or by weight, with the
   grams-per-unit math used for per-unit nutrition — plus a stable `id` and
-  user-facing `name` since a barcode can have several named variants), and
-  `FoodCategory` (best-effort category/icon guess from Open Food Facts tags).
+  user-facing `name` since a barcode can have several named variants),
+  `NutritionVariant`/`NutritionSource` (a named nutrition data set tagged
+  `.openFoodFacts` or `.custom` — mirrors `ProductUnit`'s variant shape),
+  and `FoodCategory` (best-effort category/icon guess from Open Food Facts tags).
+  `Nutrition.isEffectivelyEmpty` (all fields nil-or-zero) is the check used
+  to treat an Open-Food-Facts entry with no real data as "no data" instead
+  of displaying zeroes — some OFF products carry a `nutriments` object with
+  every field blank rather than omitting it.
 - `Foodpoint/Views/` — SwiftUI views. Keep view bodies declarative; push
   non-trivial logic into private methods on the view or into the model
   layer (e.g. `ProductUnit.make`) rather than free functions.

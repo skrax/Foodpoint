@@ -49,6 +49,13 @@ struct ScannerView: View {
     @State private var pendingVariantName = ""
     @State private var isShowingVariantPrompt = false
     @State private var isShowingVariantManager = false
+    /// Open-Food-Facts-sourced nutrition data that's new or changed since
+    /// last seen for this barcode, awaiting review. `nil` when there's
+    /// nothing to ask about (see `AppState.pendingNutritionUpdate`).
+    @State private var pendingNutritionUpdate: NutritionVariant?
+    @State private var isShowingNutritionUpdate = false
+    @State private var isShowingNutritionManager = false
+    @State private var isShowingNutritionEntry = false
 
     /// Whether the "Save" / "Scan Without Saving" pair should replace the
     /// plain "Scan Food Barcode" button.
@@ -63,7 +70,11 @@ struct ScannerView: View {
                     ProgressView("Fetching product details...")
                         .padding()
                 } else if let product = scannedProduct {
-                    ProductDetailCard(product: product)
+                    ProductDetailCard(
+                        product: product,
+                        nutritionOverride: appState.nutritionConfigs[product.id]?.nutrition,
+                        nutritionSource: appState.nutritionConfigs[product.id]?.source
+                    )
                     if didSave {
                         Text("Saved")
                             .font(.footnote)
@@ -151,6 +162,27 @@ struct ScannerView: View {
                     })
                 }
             }
+            .sheet(isPresented: $isShowingNutritionManager) {
+                if let product = scannedProduct {
+                    NutritionVariantsView(barcode: product.id)
+                }
+            }
+            .sheet(isPresented: $isShowingNutritionEntry) {
+                if let product = scannedProduct {
+                    NutritionVariantEditForm(barcode: product.id, existing: nil)
+                }
+            }
+            .sheet(isPresented: $isShowingNutritionUpdate) {
+                if let product = scannedProduct, let update = pendingNutritionUpdate {
+                    NutritionUpdateView(
+                        barcode: product.id,
+                        currentVariant: appState.nutritionConfigs[product.id],
+                        updatedOFFVariant: update
+                    ) {
+                        pendingNutritionUpdate = nil
+                    }
+                }
+            }
         }
     }
 
@@ -192,15 +224,42 @@ struct ScannerView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+
+            newProductNutritionStatus
         }
         .padding(.horizontal)
+    }
+
+    /// For a brand-new barcode with no usable nutrition data yet — checked
+    /// against whatever's already configured (`appState.nutritionConfigs`),
+    /// not just this scan's raw Open Food Facts fetch, so the banner
+    /// disappears immediately once custom values are added via the sheet
+    /// below — offers a way to enter it manually. It becomes this barcode's
+    /// default nutrition variant immediately (independent of tapping Save).
+    @ViewBuilder
+    private var newProductNutritionStatus: some View {
+        let resolved = scannedProduct.flatMap { appState.nutritionConfigs[$0.id]?.nutrition } ?? scannedProduct?.nutrition
+        if resolved == nil || (resolved?.isEffectivelyEmpty ?? true) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("No nutrition data from Open Food Facts.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button {
+                    isShowingNutritionEntry = true
+                } label: {
+                    Label("Add Nutrition Values", systemImage: "plus.circle")
+                        .font(.caption)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     /// Live "≈ Xg per slice" preview computed from the weight/count fields,
     /// shown while the user is still filling in the count-mode form.
     private var derivedGramsPerUnitHint: String? {
-        guard let weight = Double(packageWeightText), weight > 0,
-              let count = Double(countPerPackageText), count > 0 else { return nil }
+        guard let weight = packageWeightText.localizedDouble, weight > 0,
+              let count = countPerPackageText.localizedDouble, count > 0 else { return nil }
         let grams = (weight / count).formatted(.number.precision(.fractionLength(0...2)))
         let label = countLabelText.isEmpty ? "item" : countLabelText
         return "≈ \(grams) g per \(label)"
@@ -250,15 +309,39 @@ struct ScannerView: View {
                 .font(.subheadline)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+
+            knownProductNutritionStatus
         }
         .padding(.horizontal)
+    }
+
+    /// Either a "Review" button (Open Food Facts has new/changed data
+    /// waiting) or a plain "Nutrition" button into `NutritionVariantsView`.
+    private var knownProductNutritionStatus: some View {
+        Group {
+            if pendingNutritionUpdate != nil {
+                Button {
+                    isShowingNutritionUpdate = true
+                } label: {
+                    Label("Nutrition Data Available — Review", systemImage: "chart.bar.doc.horizontal")
+                        .font(.caption)
+                }
+            } else {
+                Button {
+                    isShowingNutritionManager = true
+                } label: {
+                    Label("Nutrition", systemImage: "chart.bar.doc.horizontal")
+                        .font(.caption)
+                }
+            }
+        }
     }
 
     /// Count derived from `packageWeightText` using the barcode's fixed
     /// grams-per-unit — e.g. typing "500" with a 50g/slice ratio shows "10".
     private func derivedCountText(gramsPerUnit: Double?) -> String {
         guard let gramsPerUnit, gramsPerUnit > 0,
-              let weight = Double(packageWeightText), weight > 0 else { return "—" }
+              let weight = packageWeightText.localizedDouble, weight > 0 else { return "—" }
         return (weight / gramsPerUnit).formatted(.number.precision(.fractionLength(0...2)))
     }
 
@@ -284,7 +367,7 @@ struct ScannerView: View {
     /// can't change per scan.
     private func candidateUnit(for product: Product) -> ProductUnit? {
         guard let base = appState.unitConfigs[product.id],
-              let weight = Double(packageWeightText), weight > 0 else { return nil }
+              let weight = packageWeightText.localizedDouble, weight > 0 else { return nil }
         switch base.trackingMode {
         case .weight:
             return ProductUnit(label: "g", quantityPerPackage: weight, gramsPerUnit: 1)
@@ -354,9 +437,9 @@ struct ScannerView: View {
     private func unitFromFields() -> ProductUnit {
         ProductUnit.make(
             mode: unitMode,
-            packageWeight: Double(packageWeightText),
+            packageWeight: packageWeightText.localizedDouble,
             countLabel: countLabelText,
-            countPerPackage: Double(countPerPackageText)
+            countPerPackage: countPerPackageText.localizedDouble
         )
     }
 
@@ -365,6 +448,7 @@ struct ScannerView: View {
         didSave = false
         pendingUnit = nil
         pendingVariantName = ""
+        pendingNutritionUpdate = nil
         unitMode = .count
         packageWeightText = ""
         countLabelText = "items"
@@ -381,6 +465,7 @@ struct ScannerView: View {
                         self.packageWeightText = base.packageWeight.map {
                             $0.formatted(.number.precision(.fractionLength(0...2)))
                         } ?? ""
+                        self.pendingNutritionUpdate = appState.pendingNutritionUpdate(from: product.nutrition, forBarcode: barcode)
                     } else {
                         self.isNewProduct = true
                     }

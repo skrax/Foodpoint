@@ -103,9 +103,9 @@ struct VariantEditForm: View {
             id: existing?.id ?? UUID(),
             name: trimmedName.isEmpty ? "Variant" : trimmedName,
             mode: mode,
-            packageWeight: Double(weightText),
+            packageWeight: weightText.localizedDouble,
             countLabel: label,
-            countPerPackage: Double(countText)
+            countPerPackage: countText.localizedDouble
         )
 
         if existing != nil {

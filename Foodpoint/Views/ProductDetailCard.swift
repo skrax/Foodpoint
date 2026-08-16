@@ -13,6 +13,17 @@ import SwiftUI
 /// facts included) at the top of `ItemDetailView`.
 struct ProductDetailCard: View {
     let product: Product
+    /// Overrides `product.nutrition` for display — e.g. the scanner showing
+    /// a barcode's already-resolved nutrition variant instead of this
+    /// scan's raw (possibly empty) Open Food Facts fetch. `nil` uses
+    /// `product.nutrition` as-is.
+    var nutritionOverride: Nutrition?
+    /// Shown as a badge next to "Nutrition Facts" — e.g. "Open Food Facts"
+    /// or "Custom" — so it's always clear where the numbers came from.
+    /// `nil` shows no badge.
+    var nutritionSource: NutritionSource?
+
+    private var nutrition: Nutrition? { nutritionOverride ?? product.nutrition }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -60,11 +71,22 @@ struct ProductDetailCard: View {
 
             Divider()
 
-            if let nutrition = product.nutrition {
-                Text("Nutrition Facts (per 100g)")
-                    .font(.caption)
-                    .bold()
-                    .foregroundColor(.secondary)
+            if let nutrition {
+                HStack(spacing: 6) {
+                    Text("Nutrition Facts (per 100g)")
+                        .font(.caption)
+                        .bold()
+                        .foregroundColor(.secondary)
+
+                    if let nutritionSource {
+                        Text(nutritionSource.rawValue)
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background((nutritionSource == .openFoodFacts ? Color.blue : Color.orange).opacity(0.2))
+                            .clipShape(Capsule())
+                    }
+                }
 
                 HStack {
                     MetricView(label: "Calories", value: "\(Int(nutrition.energyKcal100g ?? 0)) kcal")

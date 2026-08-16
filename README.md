@@ -25,6 +25,18 @@ once. Named package-size variants can be reviewed, renamed, resized, added,
 and deleted from the "Package Sizes" screen, reachable from both the
 scanner and an item's detail view.
 
+Nutrition works the same way. Some Open Food Facts entries report a
+`nutriments` object with every field zero rather than omitting it — the
+app treats that as "no data" rather than showing "0 kcal" and offers a
+form to enter values by hand instead. Configured values are remembered per
+barcode and always shown with a source badge (Open Food Facts vs Custom).
+If a later scan finds Open Food Facts data that's new or has changed, a
+"Review" prompt shows both options side by side; picking one updates the
+default while the other stays available as an alternate, and declining
+("Later") still remembers Open Food Facts' new numbers so the same change
+isn't asked about again next scan. Manage nutrition variants from the
+"Nutrition" screen, reachable the same way as "Package Sizes".
+
 This is an early solo prototype — expect rough edges and missing features.
 
 ## Stack
