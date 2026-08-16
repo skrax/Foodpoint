@@ -61,9 +61,10 @@ needed when adding a new file.
   `unitConfigs`/`unitVariants` directly, since the default lives in a
   different dictionary than the rest and `removeVariant` guards against
   deleting it.
-- `Foodpoint/Models/` — Plain data types: `FoodItem` (a saved product +
-  quantity + unit), `ProductUnit`/`UnitTrackingMode` (how a product's
-  quantity is counted — by discrete count or by weight, with the
+- `Foodpoint/Models/` — Plain data types: `Product`/`Nutrition` (the app's
+  own domain model — see "OpenFoodFacts package" below), `FoodItem` (a
+  saved product + quantity + unit), `ProductUnit`/`UnitTrackingMode` (how a
+  product's quantity is counted — by discrete count or by weight, with the
   grams-per-unit math used for per-unit nutrition — plus a stable `id` and
   user-facing `name` since a barcode can have several named variants), and
   `FoodCategory` (best-effort category/icon guess from Open Food Facts tags).
@@ -74,10 +75,30 @@ needed when adding a new file.
   (`AVCaptureSession`) directly via `UIViewRepresentable`; not a SwiftUI-
   native camera API, and specifically not VisionKit's
   `DataScannerViewController` (device-only, unsupported in Simulator).
-- `Foodpoint/OpenFoodFacts/` — Networking (`OpenFoodFactsService`, a
-  singleton using `async/await` + `URLSession`) and Codable response
-  models for the Open Food Facts v2 API. Errors surface as
-  `OpenFoodFactsError`.
+- `Foodpoint/OpenFoodFacts/ProductMapping.swift` — the app's *only* file
+  that imports the `OpenFoodFacts` package and touches its
+  `FoodProduct`/`Nutriments` DTOs; everything else uses `Product`/`Nutrition`.
+
+## OpenFoodFacts package
+
+`Packages/OpenFoodFacts` is a local Swift package (added as a local package
+dependency in `project.pbxproj`, product name `OpenFoodFacts`) holding all
+networking and wire-format types for the Open Food Facts v2 API:
+`OpenFoodFactsService` (the client), `FoodProduct`/`Nutriments` (Decodable
+DTOs matching OFF's JSON), and `OpenFoodFactsError`. These are `public` so
+the app can consume them, but treat them as **wire-format only** — never
+store a `FoodProduct`/`Nutriments` on a model, pass one into a view, or
+match on its fields outside `ProductMapping.swift`. Map to `Product`/
+`Nutrition` immediately after fetching (see `ScannerView.fetchFoodData`)
+and use the app model everywhere else. This separation exists so OFF's API
+shape can change, or a second data source can be added later, without
+touching the rest of the app.
+
+The package builds standalone too (`cd Packages/OpenFoodFacts && swift
+build`) — keep it free of any dependency on the app target. If you add a
+file to the package, it's picked up automatically by both `swift build`
+and Xcode (SPM target sources, no manifest edit needed) as long as it's
+under `Packages/OpenFoodFacts/Sources/OpenFoodFacts/`.
 
 There is currently no `ViewModels/` folder — views that need local state
 just use `@State` directly (see `ScannerView`, `ItemDetailView`). Only

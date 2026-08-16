@@ -3,8 +3,10 @@
 Foodpoint is an iOS pantry inventory tracker. Scan a barcode, and the
 product's nutrition and brand info (name, brand, category, Nutri-Score,
 calories, macros) is pulled live from
-[Open Food Facts](https://world.openfoodfacts.org). Saved products live in
-one flat, quantity-tracked list.
+[Open Food Facts](https://world.openfoodfacts.org) via a local Swift
+package (`Packages/OpenFoodFacts`) and mapped into the app's own `Product`
+model — the app never touches OFF's wire-format types directly. Saved
+products live in one flat, quantity-tracked list.
 
 Each product's quantity can be tracked either as a **count** (e.g. 12
 "bars", 15 "slices") or by **weight** (grams) — configured once per
@@ -60,12 +62,19 @@ instead of changing the system-wide `xcode-select` path.
 Foodpoint/
   FoodpointApp.swift   App entry point
   ContentView.swift    Root tab bar (Items, Scan)
-  ScannerView.swift    Scan tab: barcode -> OFF lookup -> save/discard
+  ScannerView.swift    Scan tab: barcode -> OFF lookup -> map -> save/discard
   State/               Global app state (AppState, @Observable singleton)
-  Models/               FoodItem, ProductUnit, FoodCategory
+  Models/               Product/Nutrition (app's domain model), FoodItem,
+                         ProductUnit, FoodCategory
   Views/                Items list, item detail, package-size management, shared row/card components
   Scanners/             Barcode scanning (AVFoundation-backed UIViewRepresentable)
-  OpenFoodFacts/         Networking + models for the Open Food Facts API
+  OpenFoodFacts/         ProductMapping.swift — maps the OpenFoodFacts
+                         package's DTOs to Product/Nutrition; the only app
+                         file that imports the package
+
+Packages/OpenFoodFacts/  Local Swift package: OpenFoodFactsService,
+                         FoodProduct, Nutriments, OpenFoodFactsError —
+                         a standalone client for the OFF v2 API
 ```
 
 See [AGENTS.md](AGENTS.md) for conventions and more detail aimed at

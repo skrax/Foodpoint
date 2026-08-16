@@ -12,12 +12,12 @@ import SwiftUI
 /// per-100g nutrition facts. Used in the scanner, and reused (nutrition
 /// facts included) at the top of `ItemDetailView`.
 struct ProductDetailCard: View {
-    let product: FoodProduct
+    let product: Product
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 16) {
-                if let imageUrl = product.imageFrontUrl, let url = URL(string: imageUrl) {
+                if let url = product.imageURL {
                     AsyncImage(url: url) { image in
                         image.resizable().scaledToFill()
                     } placeholder: {
@@ -28,11 +28,11 @@ struct ProductDetailCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(product.productName ?? "Unknown Product")
+                    Text(product.name ?? "Unknown Product")
                         .font(.title3)
                         .bold()
-                    
-                    Text(product.brands ?? "Unknown Brand")
+
+                    Text(product.brand ?? "Unknown Brand")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
@@ -60,17 +60,17 @@ struct ProductDetailCard: View {
 
             Divider()
 
-            if let nutriments = product.nutriments {
+            if let nutrition = product.nutrition {
                 Text("Nutrition Facts (per 100g)")
                     .font(.caption)
                     .bold()
                     .foregroundColor(.secondary)
 
                 HStack {
-                    MetricView(label: "Calories", value: "\(Int(nutriments.energyKcal100g ?? 0)) kcal")
-                    MetricView(label: "Carbs", value: "\(String(format: "%.1f", nutriments.carbohydrates100g ?? 0))g")
-                    MetricView(label: "Protein", value: "\(String(format: "%.1f", nutriments.proteins100g ?? 0))g")
-                    MetricView(label: "Fat", value: "\(String(format: "%.1f", nutriments.fat100g ?? 0))g")
+                    MetricView(label: "Calories", value: "\(Int(nutrition.energyKcal100g ?? 0)) kcal")
+                    MetricView(label: "Carbs", value: "\(String(format: "%.1f", nutrition.carbohydrates100g ?? 0))g")
+                    MetricView(label: "Protein", value: "\(String(format: "%.1f", nutrition.proteins100g ?? 0))g")
+                    MetricView(label: "Fat", value: "\(String(format: "%.1f", nutrition.fat100g ?? 0))g")
                 }
             }
         }

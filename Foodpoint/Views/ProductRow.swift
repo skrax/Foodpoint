@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Shared list row (name, brand, category icon, quantity) used by `ItemsView`.
 struct ProductRow: View {
-    let product: FoodProduct
+    let product: Product
     let quantity: Double
     let unitLabel: String
 
@@ -12,10 +12,10 @@ struct ProductRow: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 24)
             VStack(alignment: .leading) {
-                Text(product.productName ?? "Unknown Product")
+                Text(product.name ?? "Unknown Product")
                     .font(.headline)
-                if let brands = product.brands {
-                    Text(brands)
+                if let brand = product.brand {
+                    Text(brand)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }

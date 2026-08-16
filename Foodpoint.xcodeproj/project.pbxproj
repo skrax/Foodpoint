@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		F00DFACE0000000000000003 /* OpenFoodFacts in Frameworks */ = {isa = PBXBuildFile; productRef = F00DFACE0000000000000002 /* OpenFoodFacts */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		75B7F71630210B210054EADC /* Foodpoint.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Foodpoint.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F00DFACE0000000000000003 /* OpenFoodFacts in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +70,7 @@
 			);
 			name = Foodpoint;
 			packageProductDependencies = (
+				F00DFACE0000000000000002 /* OpenFoodFacts */,
 			);
 			productName = Foodpoint;
 			productReference = 75B7F71630210B210054EADC /* Foodpoint.app */;
@@ -94,6 +100,9 @@
 			);
 			mainGroup = 75B7F70D30210B210054EADC;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				F00DFACE0000000000000001 /* XCLocalSwiftPackageReference "Packages/OpenFoodFacts" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 75B7F71730210B210054EADC /* Products */;
 			projectDirPath = "";
@@ -334,6 +343,21 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		F00DFACE0000000000000001 /* XCLocalSwiftPackageReference "Packages/OpenFoodFacts" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/OpenFoodFacts;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F00DFACE0000000000000002 /* OpenFoodFacts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F00DFACE0000000000000001 /* XCLocalSwiftPackageReference "Packages/OpenFoodFacts" */;
+			productName = OpenFoodFacts;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 75B7F70E30210B210054EADC /* Project object */;
 }

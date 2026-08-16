@@ -26,15 +26,15 @@ class AppState {
     /// Saves a scanned product, or adds another package of it if already saved.
     /// `unit` is used as-is for this add. If this barcode has no default
     /// config yet, `unit` also becomes that default.
-    func addProduct(_ product: FoodProduct, unit: ProductUnit) {
-        if unitConfigs[product.barcode] == nil {
-            unitConfigs[product.barcode] = unit
+    func addProduct(_ product: Product, unit: ProductUnit) {
+        if unitConfigs[product.id] == nil {
+            unitConfigs[product.id] = unit
         }
 
-        if let index = items.firstIndex(where: { $0.id == product.barcode }) {
+        if let index = items.firstIndex(where: { $0.id == product.id }) {
             items[index].quantity += unit.quantityPerPackage
         } else {
-            items.append(FoodItem(id: product.barcode, product: product, quantity: unit.quantityPerPackage, unit: unit))
+            items.append(FoodItem(id: product.id, product: product, quantity: unit.quantityPerPackage, unit: unit))
         }
     }
 

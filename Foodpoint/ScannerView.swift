@@ -7,6 +7,7 @@
 
 
 import SwiftUI
+import OpenFoodFacts
 
 /// "Scan" tab: scan a barcode, look up the product on Open Food Facts, and
 /// either save it (into the flat item list, configuring its unit first if
@@ -28,7 +29,7 @@ struct ScannerView: View {
 
     @Environment(AppState.self) private var appState
     @State private var isShowingScanner = false
-    @State private var scannedProduct: FoodProduct?
+    @State private var scannedProduct: Product?
     @State private var isLoading = false
     @State private var errorMessage: String?
     /// Whether the currently displayed `scannedProduct` has been saved yet.
@@ -145,7 +146,7 @@ struct ScannerView: View {
             }
             .sheet(isPresented: $isShowingVariantManager) {
                 if let product = scannedProduct {
-                    PackageVariantsView(barcode: product.barcode, mode: .select { variant in
+                    PackageVariantsView(barcode: product.id, mode: .select { variant in
                         selectKnownVariant(variant)
                     })
                 }
@@ -211,8 +212,8 @@ struct ScannerView: View {
     /// read-only using the barcode's fixed grams-per-unit. A "Package Sizes"
     /// button opens `PackageVariantsView` to jump to, rename, or manage any
     /// remembered variant.
-    private func knownUnitFields(for product: FoodProduct) -> some View {
-        let base = appState.unitConfigs[product.barcode]
+    private func knownUnitFields(for product: Product) -> some View {
+        let base = appState.unitConfigs[product.id]
         return VStack(spacing: 8) {
             Text("Package size")
                 .font(.caption)
@@ -281,8 +282,8 @@ struct ScannerView: View {
     /// Builds the `ProductUnit` implied by the current weight field, reusing
     /// the barcode's fixed label/grams-per-unit — the parts of the unit that
     /// can't change per scan.
-    private func candidateUnit(for product: FoodProduct) -> ProductUnit? {
-        guard let base = appState.unitConfigs[product.barcode],
+    private func candidateUnit(for product: Product) -> ProductUnit? {
+        guard let base = appState.unitConfigs[product.id],
               let weight = Double(packageWeightText), weight > 0 else { return nil }
         switch base.trackingMode {
         case .weight:
@@ -318,7 +319,7 @@ struct ScannerView: View {
         }
 
         guard let candidate = candidateUnit(for: product) else { return }
-        if let matched = matchingKnownVariant(candidate, for: product.barcode) {
+        if let matched = matchingKnownVariant(candidate, for: product.id) {
             appState.addProduct(product, unit: matched)
             didSave = true
             scanAgain()
@@ -335,7 +336,7 @@ struct ScannerView: View {
         if storeVariant {
             let trimmed = pendingVariantName.trimmingCharacters(in: .whitespacesAndNewlines)
             finalUnit.name = trimmed.isEmpty ? "Variant" : trimmed
-            appState.addUnitVariant(finalUnit, forBarcode: product.barcode)
+            appState.addUnitVariant(finalUnit, forBarcode: product.id)
         }
         appState.addProduct(product, unit: finalUnit)
         didSave = true
@@ -370,7 +371,8 @@ struct ScannerView: View {
         countPerPackageText = "1"
         Task {
             do {
-                let product = try await OpenFoodFactsService.shared.fetchProduct(barcode: barcode)
+                let offProduct = try await OpenFoodFactsService.shared.fetchProduct(barcode: barcode)
+                let product = Product(offProduct: offProduct)
                 await MainActor.run {
                     self.scannedProduct = product
                     self.isLoading = false

@@ -1,7 +1,7 @@
 import Foundation
 
 /// A coarse grocery category used to pick an icon for a product, derived
-/// best-effort from Open Food Facts' category tags (see `FoodProduct.category`).
+/// best-effort from Open Food Facts' category tags (see `Product.category`).
 enum FoodCategory: String, CaseIterable {
     case fruitsAndVegetables = "Fruits & Vegetables"
     case dairyAndEggs = "Dairy & Eggs"
@@ -27,7 +27,7 @@ enum FoodCategory: String, CaseIterable {
     }
 }
 
-extension FoodProduct {
+extension Product {
     /// Best-effort guess from Open Food Facts' free-form category tags.
     ///
     /// OFF's `categories_tags` vocabulary is huge and inconsistent, so this
@@ -35,8 +35,8 @@ extension FoodProduct {
     /// rather than trying to map the full taxonomy. Falls back to `.other`
     /// when there's no useful data or no keyword matches.
     var category: FoodCategory {
-        guard let tags = categoriesTags, !tags.isEmpty else { return .other }
-        let joined = tags.joined(separator: " ").lowercased()
+        guard !categoriesTags.isEmpty else { return .other }
+        let joined = categoriesTags.joined(separator: " ").lowercased()
 
         if joined.contains("frozen") {
             return .frozen

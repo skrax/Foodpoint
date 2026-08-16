@@ -12,7 +12,7 @@ enum UnitTrackingMode: String, CaseIterable, Identifiable {
 
 /// Describes how one product's quantity is counted and, optionally, how
 /// much one count-unit weighs (used to derive nutrition-per-unit from
-/// Open Food Facts' per-100g figures via `Nutriments.scaled(by:)`).
+/// Open Food Facts' per-100g figures via `Nutrition.scaled(by:)`).
 ///
 /// A barcode can have several `ProductUnit`s — one default plus any number
 /// of named variants (e.g. "Default"/750g, "Small"/500g) — all stored under

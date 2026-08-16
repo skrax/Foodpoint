@@ -7,7 +7,7 @@ import Foundation
 struct FoodItem: Identifiable {
     /// The product's barcode, also used as `AppState.unitConfigs`'s key.
     let id: String
-    var product: FoodProduct
+    var product: Product
     /// Amount remaining, expressed in `unit.label` (e.g. 12 "bars", 650 "g").
     var quantity: Double
     var unit: ProductUnit

@@ -40,7 +40,7 @@ struct ItemDetailView: View {
             }
             .padding(.bottom)
         }
-        .navigationTitle(item?.product.productName ?? "Product")
+        .navigationTitle(item?.product.name ?? "Product")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
@@ -100,23 +100,23 @@ struct ItemDetailView: View {
     }
 
     /// `nil` when `gramsPerUnit` isn't configured — nothing to scale by.
-    private func nutritionPerUnit(for item: FoodItem) -> Nutriments? {
-        guard let nutriments = item.product.nutriments, let grams = item.unit.gramsPerUnit else { return nil }
-        return nutriments.scaled(by: grams / 100)
+    private func nutritionPerUnit(for item: FoodItem) -> Nutrition? {
+        guard let nutrition = item.product.nutrition, let grams = item.unit.gramsPerUnit else { return nil }
+        return nutrition.scaled(by: grams / 100)
     }
 
     /// E.g. "Nutrition per bar (40g)" followed by the scaled macro tiles.
-    private func nutritionPerUnitSection(_ nutriments: Nutriments, label: String, grams: Double) -> some View {
+    private func nutritionPerUnitSection(_ nutrition: Nutrition, label: String, grams: Double) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Nutrition per \(label) (\(formatted(grams))g)")
                 .font(.caption)
                 .bold()
                 .foregroundStyle(.secondary)
             HStack {
-                MetricView(label: "Calories", value: "\(Int(nutriments.energyKcal100g ?? 0)) kcal")
-                MetricView(label: "Carbs", value: "\(String(format: "%.1f", nutriments.carbohydrates100g ?? 0))g")
-                MetricView(label: "Protein", value: "\(String(format: "%.1f", nutriments.proteins100g ?? 0))g")
-                MetricView(label: "Fat", value: "\(String(format: "%.1f", nutriments.fat100g ?? 0))g")
+                MetricView(label: "Calories", value: "\(Int(nutrition.energyKcal100g ?? 0)) kcal")
+                MetricView(label: "Carbs", value: "\(String(format: "%.1f", nutrition.carbohydrates100g ?? 0))g")
+                MetricView(label: "Protein", value: "\(String(format: "%.1f", nutrition.proteins100g ?? 0))g")
+                MetricView(label: "Fat", value: "\(String(format: "%.1f", nutrition.fat100g ?? 0))g")
             }
         }
         .padding()
