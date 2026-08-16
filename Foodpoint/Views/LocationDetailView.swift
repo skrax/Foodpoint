@@ -73,34 +73,10 @@ struct LocationDetailView: View {
     }
 
     private func row(for item: LocationItem) -> some View {
-        HStack {
-            NavigationLink {
-                ScrollView {
-                    ProductDetailCard(product: item.product)
-                }
-                .navigationTitle(item.product.productName ?? "Product")
-                .navigationBarTitleDisplayMode(.inline)
-            } label: {
-                VStack(alignment: .leading) {
-                    Text(item.product.productName ?? "Unknown Product")
-                        .font(.headline)
-                    if let brands = item.product.brands {
-                        Text(brands)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            Spacer()
-            Stepper(
-                "\(item.quantity)",
-                value: Binding(
-                    get: { item.quantity },
-                    set: { appState.setQuantity($0, forItemID: item.id, inLocationWithID: locationID) }
-                ),
-                in: 0...99
-            )
-            .fixedSize()
+        NavigationLink {
+            LocationItemDetailView(locationID: locationID, itemID: item.id)
+        } label: {
+            ProductRow(product: item.product, quantity: item.quantity)
         }
     }
 

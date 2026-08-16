@@ -44,20 +44,7 @@ struct AllItemsView: View {
             .navigationTitle(item.product.productName ?? "Product")
             .navigationBarTitleDisplayMode(.inline)
         } label: {
-            HStack {
-                VStack(alignment: .leading) {
-                    Text(item.product.productName ?? "Unknown Product")
-                        .font(.headline)
-                    if let brands = item.product.brands {
-                        Text(brands)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Spacer()
-                Text("×\(item.quantity)")
-                    .foregroundStyle(.secondary)
-            }
+            ProductRow(product: item.product, quantity: item.quantity)
         }
     }
 }
