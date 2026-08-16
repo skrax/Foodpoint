@@ -5,7 +5,8 @@ Guidance for AI coding assistants working in this repo. See
 
 ## What this is
 
-Foodpoint is a solo-developer SwiftUI iOS prototype: scan a barcode, look
+Foodpoint is a solo-developer SwiftUI iOS prototype: scan a barcode (or
+search by name for something with no barcode — produce, bulk goods), look
 up the product on Open Food Facts, and save it into a flat, quantity-
 tracked item list. It is early-stage — prefer small, direct changes over
 speculative abstractions. (A prior "locations" feature — organizing items
@@ -83,7 +84,12 @@ dependency" below).
 - `Foodpoint/` (app target) — SwiftUI views and camera glue only, nothing
   else:
   - `ScannerView.swift`, `ContentView.swift`, `FoodpointApp.swift` — the
-    latter injects `AppState.shared` into the environment.
+    latter injects `AppState.shared` into the environment. `ScannerView`
+    has two acquisition entry points into the same downstream save flow:
+    the camera (`FastFoodBarcodeScanner`) and `Views/ProductSearchView.swift`
+    (text search); a search result is re-resolved by its barcode via
+    `fetchFoodData(for:)` rather than reusing the already-fetched product,
+    so there's exactly one code path past that point, not two to maintain.
   - `Views/` — SwiftUI views. Keep bodies declarative; push non-trivial
     logic into `PantryKit` (a new/extended `PantryStore` method, reached
     via `appState.pantry`) or a `FoodFoundation` computed property, rather
@@ -170,11 +176,14 @@ dependency" below).
   or the app. Depends on `OpenFoodFactsKit`:
   - `Sources/FoodFoundation/ProductLookup.swift` — the *only* file, in the
     whole dependency graph, that imports `OpenFoodFactsKit` and touches its
-    `FoodProduct`/`Nutriments` DTOs directly; everywhere else works with
-    `Product`/`Nutrition`. Also defines `ProductLookup.fetch(barcode:)`,
-    a stateless call `ScannerView` (and, in future, other packages) makes
-    to fetch-and-map — nothing outside this file ever imports
-    `OpenFoodFactsKit`.
+    `FoodProduct`/`SearchedProduct`/`Nutriments` DTOs directly; everywhere
+    else works with `Product`/`Nutrition`. Two stateless entry points, both
+    independent of any package's state (`PantryKit` and, in future,
+    `MealKit` each call whichever they need directly, never through one
+    another): `ProductLookup.fetch(barcode:)` for a known barcode, and
+    `ProductLookup.search(query:)` for free-text search (no barcode
+    needed) — see "Product search" below for why the latter maps a
+    different DTO, not `FoodProduct` again.
   - `Sources/FoodFoundation/Models/` — Plain data types: `Product`/`Nutrition`
     (the app's own domain model, decoupled from OFF's wire format),
     `ProductUnit`/`UnitTrackingMode` (how a product's quantity is counted —
@@ -196,11 +205,15 @@ dependency" below).
     `PantryKitTests`.
 
 - `Packages/OpenFoodFactsKit/` (local package, product `OpenFoodFactsKit`) —
-  all networking and wire-format types for the Open Food Facts v2 API:
-  `OpenFoodFactsService` (the client), `FoodProduct`/`Nutriments`
-  (Decodable DTOs matching OFF's JSON), and `OpenFoodFactsError`. Public so
-  `FoodFoundation` can consume them, but treat them as **wire-format
-  only** — never store one on a model or pass one outside
+  all networking and wire-format types for Open Food Facts' APIs:
+  `OpenFoodFactsService` (the client) with two methods hitting two
+  different services — `fetchProduct(barcode:)` (the v2 product API,
+  `world.openfoodfacts.org`) and `searchProducts(query:)` (search-a-licious,
+  `search.openfoodfacts.org` — see "Product search" below for why it's a
+  separate service, not a parameter on the v2 API) — plus `FoodProduct`/
+  `SearchedProduct`/`Nutriments` (Decodable DTOs) and `OpenFoodFactsError`.
+  Public so `FoodFoundation` can consume them, but treat them as
+  **wire-format only** — never store one on a model or pass one outside
   `ProductLookup.swift`. Has no dependency on any other package
   (dependency direction is one-way: `Foodpoint` app -> `FoodpointKit` ->
   `PantryKit` -> `FoodFoundation` -> `OpenFoodFactsKit`).
@@ -218,6 +231,27 @@ silently returns `nil` for "5,2", dropping the value as if never entered.
 This was a real, previously-shipped bug. Always use
 `someText.localizedDouble` (`FoodFoundation`'s `String` extension) instead,
 in both the app and any new package code.
+
+## Product search
+
+Open Food Facts' v2/v3 product API does **not** support free-text search —
+confirmed against the live API and current docs while building this, not
+assumed. Text search goes through a genuinely different service,
+search-a-licious (`search.openfoodfacts.org`), with its own response
+shape. The one field that actually differs from `FoodProduct` (confirmed
+by comparing real responses from both endpoints): **`brands` is an array**
+on search results (`["Fresh Banana"]`) where the by-barcode endpoint
+returns a single comma-separated string (`"Nutella, Ferrero"`). That's why
+`SearchedProduct` is its own type rather than reusing `FoodProduct` — decode
+one endpoint's JSON as the other's DTO and it silently fails or crashes.
+`Product(searchedProduct:)` joins the array with `", "` so the rest of the
+app never has to know which acquisition path a `Product` came from. The
+nested `nutriments` object uses identical field names on both endpoints,
+so `Nutriments`/`Nutrition.init(offNutriments:)` are reused unchanged.
+
+If Open Food Facts' search API changes again, re-verify against the live
+endpoint (`curl` it) rather than assuming the response shape — that's what
+caught this the first time.
 
 ## Testing conventions
 

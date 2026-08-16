@@ -5,6 +5,7 @@ import Foundation
 public enum OpenFoodFactsError: Error, LocalizedError {
     case invalidURL
     case productNotFound
+    case searchFailed
     case networkError(Error)
     case decodingError
 
@@ -14,6 +15,8 @@ public enum OpenFoodFactsError: Error, LocalizedError {
             return "The barcode URL was invalid."
         case .productNotFound:
             return "Product not found in the Open Food Facts database."
+        case .searchFailed:
+            return "The search request failed."
         case .networkError(let error):
             return "Network request failed: \(error.localizedDescription)"
         case .decodingError:

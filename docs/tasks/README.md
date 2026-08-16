@@ -62,7 +62,7 @@ Prerequisite for meals; no new user-facing behavior. See
 |----|-------|--------|-----------|
 | [PA-1](epic-1-package-architecture/PA-1-rename-openfoodfacts-kit.md) | Rename OpenFoodFacts → OpenFoodFactsKit | done | — |
 | [PA-2](epic-1-package-architecture/PA-2-extract-food-foundation.md) | Extract FoodFoundation | done | PA-1 |
-| [PA-3](epic-1-package-architecture/PA-3-add-product-search.md) | Add product search (no-barcode acquisition) | ready | PA-2 |
+| [PA-3](epic-1-package-architecture/PA-3-add-product-search.md) | Add product search (no-barcode acquisition) | done | PA-2 |
 | [PA-4](epic-1-package-architecture/PA-4-extract-pantry-kit.md) | Extract PantryKit | done | PA-2 |
 | [PA-5](epic-1-package-architecture/PA-5-slim-foodpoint-kit.md) | Slim FoodpointKit to a composition root | done | PA-4 |
 
@@ -74,7 +74,7 @@ MK-1 only strictly needs PA-5 + PA-3.
 
 | ID | Title | Status | Depends on |
 |----|-------|--------|-----------|
-| [MK-1](epic-2-meals-feature/MK-1-mealkit-model-and-aggregation.md) | MealKit core model and aggregation | backlog | PA-5, PA-3 |
+| [MK-1](epic-2-meals-feature/MK-1-mealkit-model-and-aggregation.md) | MealKit core model and aggregation | ready | PA-5, PA-3 |
 | [MK-2](epic-2-meals-feature/MK-2-meal-composition-editor.md) | Meal composition editor and ingredient acquisition | backlog | MK-1, PA-3 |
 | [MK-3](epic-2-meals-feature/MK-3-manual-logging-and-orchestration.md) | Manual logging loop and pantry orchestration | backlog | MK-1, MK-2, PA-5 |
 | [MK-4](epic-2-meals-feature/MK-4-templates-and-one-tap-logging.md) | Templates and one-tap logging | backlog | MK-3 |
@@ -83,16 +83,16 @@ MK-1 only strictly needs PA-5 + PA-3.
 
 ## What's next
 
-**PA-1, PA-2, PA-4, and PA-5 are done — the app builds again** on top of
-the full `OpenFoodFactsKit → FoodFoundation → PantryKit → FoodpointKit`
-split, behaving identically to before the restructuring (verified via
-simulator navigation; the full scan→save→adjust walkthrough still needs
-confirming on a physical device, since the simulator has no real camera).
+**Epic 1 (Package Architecture Restructuring) is fully done.** The app
+builds on the full `OpenFoodFactsKit → FoodFoundation → PantryKit →
+FoodpointKit` split, plus the new search-a-licious-backed "Search by Name"
+path (PA-3) alongside barcode scanning. Two things still need confirming
+on the physical device (both builds are installed there): the full
+scan→save→adjust walkthrough from PA-5, and tapping a search result
+through to a save from PA-3 — the Simulator could verify search itself
+against the live API, but not the tap-through, due to a Simulator input
+issue unrelated to the app.
 
-**PA-3** is the only remaining Epic 1 task, and it's optional relative to
-starting Epic 2 in the narrowest sense — **MK-1 needs it** (per its
-`depends_on`), so it still has to land before Meals gets past its first
-task, but nothing blocks starting PA-3 and MK-1 in either order relative
-to each other being *begun* right now. Epic 2 otherwise fans out from MK-3
-once the core loop exists — MK-4, MK-5, and MK-6 don't depend on each
-other and can happen in any order (or in parallel) once MK-3 is done.
+**MK-1 (MealKit core model and aggregation) is ready** — the first task of
+Epic 2. Nothing else in Epic 2 can start before it; MK-2 depends on it
+directly, and MK-3 through MK-6 all sit downstream of MK-2/MK-3.

@@ -18,6 +18,24 @@ extension Product {
             nutrition: offProduct.nutriments.map(Nutrition.init(offNutriments:))
         )
     }
+
+    /// Maps a search-a-licious result (`SearchedProduct`) rather than a
+    /// by-barcode `FoodProduct`. The only real difference is `brands`,
+    /// which search returns as an array — joined into the same
+    /// comma-separated shape `FoodProduct.brands` already uses, so the rest
+    /// of the app never has to know which acquisition path a `Product` came
+    /// from.
+    public init(searchedProduct: OpenFoodFactsKit.SearchedProduct) {
+        self.init(
+            id: searchedProduct.barcode,
+            name: searchedProduct.productName,
+            brand: searchedProduct.brands?.joined(separator: ", "),
+            imageURL: searchedProduct.imageFrontUrl.flatMap(URL.init(string:)),
+            nutriScoreGrade: searchedProduct.nutriScoreGrade,
+            categoriesTags: searchedProduct.categoriesTags ?? [],
+            nutrition: searchedProduct.nutriments.map(Nutrition.init(offNutriments:))
+        )
+    }
 }
 
 extension Nutrition {
@@ -42,5 +60,13 @@ public enum ProductLookup {
     public static func fetch(barcode: String) async throws -> Product {
         let offProduct = try await OpenFoodFactsService.shared.fetchProduct(barcode: barcode)
         return Product(offProduct: offProduct)
+    }
+
+    /// Finds candidates by name when there's no barcode to scan — produce,
+    /// bulk goods, and other unlabeled groceries. An empty result is valid;
+    /// it just means nothing matched.
+    public static func search(query: String) async throws -> [Product] {
+        let results = try await OpenFoodFactsService.shared.searchProducts(query: query)
+        return results.map(Product.init(searchedProduct:))
     }
 }

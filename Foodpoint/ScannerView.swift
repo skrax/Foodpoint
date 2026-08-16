@@ -9,9 +9,14 @@
 import SwiftUI
 import FoodpointKit
 
-/// "Scan" tab: scan a barcode, look up the product on Open Food Facts, and
-/// either save it (into the flat item list, configuring its unit first if
-/// this barcode has never been saved before) or discard it and scan again.
+/// "Scan" tab: scan a barcode (or, via `ProductSearchView`, search by name
+/// for something with no barcode — fresh produce, bulk goods), look up the
+/// product on Open Food Facts, and either save it (into the flat item
+/// list, configuring its unit first if this barcode has never been saved
+/// before) or discard it and scan again. Both acquisition paths converge
+/// on the same barcode-driven flow below (`fetchFoodData(for:)`) — a
+/// search result is re-resolved by its barcode rather than reusing the
+/// already-fetched product, so there's exactly one downstream code path.
 ///
 /// For a barcode that's already configured, the package-size fields are
 /// still shown (pre-filled from the saved config) rather than a static
@@ -29,6 +34,7 @@ struct ScannerView: View {
 
     @Environment(AppState.self) private var appState
     @State private var isShowingScanner = false
+    @State private var isShowingSearch = false
     @State private var scannedProduct: Product?
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -122,6 +128,16 @@ struct ScannerView: View {
                     .buttonStyle(.borderedProminent)
                     .padding(.horizontal)
                     .disabled(isLoading)
+
+                    Button {
+                        isShowingSearch = true
+                    } label: {
+                        Label("Search by Name", systemImage: "magnifyingglass")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .padding(.horizontal)
+                    .disabled(isLoading)
                 }
             }
             .navigationTitle("Food Tracker")
@@ -141,6 +157,11 @@ struct ScannerView: View {
 
                     ViewfinderOverlay()
                         .ignoresSafeArea()
+                }
+            }
+            .sheet(isPresented: $isShowingSearch) {
+                ProductSearchView { barcode in
+                    fetchFoodData(for: barcode)
                 }
             }
             .alert(

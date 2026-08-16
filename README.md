@@ -1,6 +1,7 @@
 # Foodpoint
 
-Foodpoint is an iOS pantry inventory tracker. Scan a barcode, and the
+Foodpoint is an iOS pantry inventory tracker. Scan a barcode — or search by
+name for something with no barcode to scan, like fresh produce — and the
 product's nutrition and brand info (name, brand, category, Nutri-Score,
 calories, macros) is pulled live from
 [Open Food Facts](https://world.openfoodfacts.org). Saved products live in
@@ -16,6 +17,15 @@ logic on top of it (what's saved, how it's counted, its nutrition); and
 `AppState`, the single object the app injects into its environment. The
 SwiftUI app is a thin driver on top of all three: views, the camera
 scanner, and not much else.
+
+"Search by Name" (next to "Scan Food Barcode") finds candidates by text
+query against Open Food Facts' [search-a-licious](https://search.openfoodfacts.org)
+API — the v2/v3 product API doesn't support free-text search, so this is a
+distinct request against a different endpoint, not a variant of the
+by-barcode lookup. Picking a result feeds the exact same save flow a
+barcode scan would; this covers produce and other unlabeled groceries, not
+things Open Food Facts has no listing for at all (a home-cooked dish,
+still out of scope).
 
 Each product's quantity can be tracked either as a **count** (e.g. 12
 "bars", 15 "slices") or by **weight** (grams) — configured once per
@@ -57,7 +67,8 @@ This is an early solo prototype — expect rough edges and missing features.
 - `@Observable` (Observation framework) for state — no third-party
   dependencies
 - AVFoundation for barcode scanning
-- Open Food Facts public API for product lookup
+- Open Food Facts public API for product lookup, and search-a-licious for
+  text search (produce and other unlabeled groceries)
 - Swift Testing for the packages' unit tests
 
 ## Requirements
@@ -99,9 +110,12 @@ to test.)
 Foodpoint/
   FoodpointApp.swift   App entry point
   ContentView.swift    Root tab bar (Items, Scan)
-  ScannerView.swift    Scan tab: barcode -> ProductLookup.fetch -> save/discard
+  ScannerView.swift    Scan tab: barcode -> ProductLookup.fetch -> save/discard;
+                       also hosts "Search by Name" -> ProductSearchView
   Views/               SwiftUI views only — no business logic; read/write
                         pantry state via `appState.pantry.*`
+    ProductSearchView.swift  Text search sheet; picking a result re-resolves
+                              it by barcode through the same path a scan uses
   Scanners/             Barcode scanning (AVFoundation-backed UIViewRepresentable)
 
 Packages/
@@ -121,16 +135,19 @@ Packages/
   FoodFoundation/        Local Swift package: shared domain types and product
                           lookup, depended on by PantryKit (and, in future, MealKit)
     Sources/FoodFoundation/
-      ProductLookup.swift  Maps OpenFoodFactsKit's DTOs to Product/Nutrition
-                            and resolves a barcode to a Product; the only
-                            file that imports OpenFoodFactsKit
+      ProductLookup.swift  Maps OpenFoodFactsKit's DTOs to Product/Nutrition;
+                            resolves a barcode (.fetch) or a text query
+                            (.search) to Product(s); the only file that
+                            imports OpenFoodFactsKit
       Models/              Product/Nutrition, ProductUnit,
                             NutritionVariant, FoodCategory, NumericInput
     Tests/FoodFoundationTests/  Swift Testing unit tests
 
-  OpenFoodFactsKit/       Local Swift package: OpenFoodFactsService,
-                          FoodProduct, Nutriments, OpenFoodFactsError —
-                          a standalone client for the OFF v2 API
+  OpenFoodFactsKit/       Local Swift package: OpenFoodFactsService
+                          (fetchProduct by barcode, searchProducts by text
+                          query against search-a-licious), FoodProduct,
+                          SearchedProduct, Nutriments, OpenFoodFactsError —
+                          a standalone client for Open Food Facts' APIs
 ```
 
 See [AGENTS.md](AGENTS.md) for conventions and more detail aimed at

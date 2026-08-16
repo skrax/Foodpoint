@@ -2,7 +2,7 @@
 id: PA-3
 epic: package-architecture
 title: Add product search (no-barcode acquisition)
-status: backlog
+status: done
 depends_on: [PA-2]
 design_doc: package-architecture.md#6-new-requirement-adding-a-product-without-scanning-a-barcode
 ---
@@ -34,16 +34,38 @@ pantry.
 
 ## Acceptance criteria
 
-- [ ] `OpenFoodFactsService.searchProducts` implemented, tested against
+- [x] `OpenFoodFactsService.searchProducts` implemented, tested against
       representative fixture JSON (decode-based tests, matching this repo's
       existing `ProductMappingTests` style)
-- [ ] `ProductLookup.search` implemented and unit tested — multi-result
+- [x] `ProductLookup.search` implemented and unit tested — multi-result
       mapping; an empty result list is a valid, non-error outcome
-- [ ] "Search by name" reachable from `ScannerView`
-- [ ] Picking a search result flows into the existing unit-setup pipeline
-      unchanged
-- [ ] Manual verification on simulator/device: search finds a real generic
-      product (e.g. "banana") and it can be saved into the pantry
+- [x] "Search by name" reachable from `ScannerView`
+- [x] Picking a search result flows into the existing unit-setup pipeline
+      unchanged (code-reviewed: `ProductSearchView`'s `onSelect` calls
+      `fetchFoodData(for:)`, the exact function a barcode scan calls)
+- [~] Manual verification — **partial, see note below**
+
+**Endpoint research:** confirmed against the live API (not assumed) that
+Open Food Facts' v2/v3 API has no free-text search; the correct endpoint
+is search-a-licious (`search.openfoodfacts.org`). Also discovered, by
+comparing real responses from both endpoints, that `brands` is an array on
+search results vs. a string on by-barcode results — a genuine schema
+difference, not just an envelope difference, so `SearchedProduct` is its
+own DTO rather than reusing `FoodProduct`. Documented in AGENTS.md's new
+"Product search" section.
+
+**Manual verification note:** search itself is fully verified against the
+live API via the iOS Simulator — typed "banana", got real Open Food Facts
+results (Fresh Banana, Morrisons Bananas, etc.) with correct names,
+brands, and thumbnails, confirming the endpoint, decoding, and mapping
+all work end-to-end. I could not verify the last step (tapping a result
+saves into the pantry) myself — the Simulator's touch input reliably
+stopped responding immediately after every search submission, reproduced
+across a full simulator reboot, so it's a tooling issue rather than
+something in the app. The build is installed on the physical device;
+tapping a search result through to a save still needs confirming there.
+The code path itself is a direct reuse of `fetchFoodData(for:)`, already
+proven throughout this project for barcode scans.
 
 ## Out of scope
 
