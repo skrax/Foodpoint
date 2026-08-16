@@ -9,6 +9,10 @@
 import SwiftUI
 
 struct ScannerView: View {
+    private enum UnitField: Hashable {
+        case packageWeight, countLabel, countPerPackage
+    }
+
     @Environment(AppState.self) private var appState
     @State private var isShowingScanner = false
     @State private var scannedProduct: FoodProduct?
@@ -16,9 +20,11 @@ struct ScannerView: View {
     @State private var errorMessage: String?
     @State private var didSave = false
     @State private var isNewProduct = false
-    @State private var unitLabel = "items"
-    @State private var quantityPerPackageText = "1"
-    @State private var gramsPerUnitText = ""
+    @State private var unitMode: UnitTrackingMode = .count
+    @State private var packageWeightText = ""
+    @State private var countLabelText = "items"
+    @State private var countPerPackageText = "1"
+    @FocusState private var focusedUnitField: UnitField?
 
     private var canSave: Bool {
         scannedProduct != nil && !didSave && !isLoading
@@ -80,6 +86,12 @@ struct ScannerView: View {
                 }
             }
             .navigationTitle("Food Tracker")
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { focusedUnitField = nil }
+                }
+            }
             .sheet(isPresented: $isShowingScanner) {
                 ZStack {
                     FastFoodBarcodeScanner { barcode in
@@ -102,18 +114,44 @@ struct ScannerView: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            TextField("Count label (e.g. bars, slices, g)", text: $unitLabel)
-                .textFieldStyle(.roundedBorder)
+            Picker("Tracking", selection: $unitMode) {
+                ForEach(UnitTrackingMode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
 
-            TextField("Quantity per package", text: $quantityPerPackageText)
+            TextField("Bag/package weight (g)", text: $packageWeightText)
                 .textFieldStyle(.roundedBorder)
                 .keyboardType(.decimalPad)
+                .focused($focusedUnitField, equals: .packageWeight)
 
-            TextField("Grams per unit (optional)", text: $gramsPerUnitText)
-                .textFieldStyle(.roundedBorder)
-                .keyboardType(.decimalPad)
+            if unitMode == .count {
+                TextField("Count label (e.g. slices, bars)", text: $countLabelText)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($focusedUnitField, equals: .countLabel)
+
+                TextField("Count per package (e.g. 15)", text: $countPerPackageText)
+                    .textFieldStyle(.roundedBorder)
+                    .keyboardType(.decimalPad)
+                    .focused($focusedUnitField, equals: .countPerPackage)
+
+                if let hint = derivedGramsPerUnitHint {
+                    Text(hint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .padding(.horizontal)
+    }
+
+    private var derivedGramsPerUnitHint: String? {
+        guard let weight = Double(packageWeightText), weight > 0,
+              let count = Double(countPerPackageText), count > 0 else { return nil }
+        let grams = (weight / count).formatted(.number.precision(.fractionLength(0...2)))
+        let label = countLabelText.isEmpty ? "item" : countLabelText
+        return "≈ \(grams) g per \(label)"
     }
 
     private func save() {
@@ -130,22 +168,21 @@ struct ScannerView: View {
     }
 
     private func unitFromFields() -> ProductUnit {
-        let label = unitLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-        let quantityPerPackage = Double(quantityPerPackageText) ?? 1
-        let gramsPerUnit = Double(gramsPerUnitText)
-        return ProductUnit(
-            label: label.isEmpty ? "items" : label,
-            quantityPerPackage: quantityPerPackage > 0 ? quantityPerPackage : 1,
-            gramsPerUnit: gramsPerUnit
+        ProductUnit.make(
+            mode: unitMode,
+            packageWeight: Double(packageWeightText),
+            countLabel: countLabelText,
+            countPerPackage: Double(countPerPackageText)
         )
     }
 
     private func fetchFoodData(for barcode: String) {
         isLoading = true
         didSave = false
-        unitLabel = "items"
-        quantityPerPackageText = "1"
-        gramsPerUnitText = ""
+        unitMode = .count
+        packageWeightText = ""
+        countLabelText = "items"
+        countPerPackageText = "1"
         Task {
             do {
                 let product = try await OpenFoodFactsService.shared.fetchProduct(barcode: barcode)

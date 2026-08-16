@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ItemDetailView: View {
     private enum Field: Hashable {
-        case quantity, unitLabel, quantityPerPackage, gramsPerUnit
+        case quantity, packageWeight, countLabel, countPerPackage
     }
 
     let itemID: String
@@ -12,9 +12,10 @@ struct ItemDetailView: View {
 
     @State private var quantityText = ""
     @State private var isEditingUnit = false
-    @State private var unitLabelText = ""
-    @State private var quantityPerPackageText = ""
-    @State private var gramsPerUnitText = ""
+    @State private var unitMode: UnitTrackingMode = .count
+    @State private var packageWeightText = ""
+    @State private var countLabelText = ""
+    @State private var countPerPackageText = ""
 
     private var item: FoodItem? {
         appState.items.first { $0.id == itemID }
@@ -118,17 +119,35 @@ struct ItemDetailView: View {
     private func unitEditSection(for item: FoodItem) -> some View {
         VStack(spacing: 8) {
             if isEditingUnit {
-                TextField("Count label (e.g. bars, slices, g)", text: $unitLabelText)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($focusedField, equals: .unitLabel)
-                TextField("Quantity per package", text: $quantityPerPackageText)
+                Picker("Tracking", selection: $unitMode) {
+                    ForEach(UnitTrackingMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                TextField("Bag/package weight (g)", text: $packageWeightText)
                     .textFieldStyle(.roundedBorder)
                     .keyboardType(.decimalPad)
-                    .focused($focusedField, equals: .quantityPerPackage)
-                TextField("Grams per unit (optional)", text: $gramsPerUnitText)
-                    .textFieldStyle(.roundedBorder)
-                    .keyboardType(.decimalPad)
-                    .focused($focusedField, equals: .gramsPerUnit)
+                    .focused($focusedField, equals: .packageWeight)
+
+                if unitMode == .count {
+                    TextField("Count label (e.g. slices, bars)", text: $countLabelText)
+                        .textFieldStyle(.roundedBorder)
+                        .focused($focusedField, equals: .countLabel)
+
+                    TextField("Count per package (e.g. 15)", text: $countPerPackageText)
+                        .textFieldStyle(.roundedBorder)
+                        .keyboardType(.decimalPad)
+                        .focused($focusedField, equals: .countPerPackage)
+
+                    if let hint = derivedGramsPerUnitHint {
+                        Text(hint)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
                 Button("Save Unit") {
                     saveUnit()
                 }
@@ -143,21 +162,34 @@ struct ItemDetailView: View {
         .padding(.horizontal)
     }
 
+    private var derivedGramsPerUnitHint: String? {
+        guard let weight = Double(packageWeightText), weight > 0,
+              let count = Double(countPerPackageText), count > 0 else { return nil }
+        let grams = (weight / count).formatted(.number.precision(.fractionLength(0...2)))
+        let label = countLabelText.isEmpty ? "item" : countLabelText
+        return "≈ \(grams) g per \(label)"
+    }
+
     private func beginEditingUnit(_ unit: ProductUnit) {
-        unitLabelText = unit.label
-        quantityPerPackageText = formatted(unit.quantityPerPackage)
-        gramsPerUnitText = unit.gramsPerUnit.map(formatted) ?? ""
+        unitMode = unit.trackingMode
+        packageWeightText = unit.packageWeight.map(formatted) ?? ""
+        switch unit.trackingMode {
+        case .weight:
+            countLabelText = ""
+            countPerPackageText = ""
+        case .count:
+            countLabelText = unit.label
+            countPerPackageText = formatted(unit.quantityPerPackage)
+        }
         isEditingUnit = true
     }
 
     private func saveUnit() {
-        let label = unitLabelText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let quantityPerPackage = Double(quantityPerPackageText) ?? 1
-        let gramsPerUnit = Double(gramsPerUnitText)
-        let unit = ProductUnit(
-            label: label.isEmpty ? "items" : label,
-            quantityPerPackage: quantityPerPackage > 0 ? quantityPerPackage : 1,
-            gramsPerUnit: gramsPerUnit
+        let unit = ProductUnit.make(
+            mode: unitMode,
+            packageWeight: Double(packageWeightText),
+            countLabel: countLabelText,
+            countPerPackage: Double(countPerPackageText)
         )
         appState.updateUnit(unit, forItemID: itemID)
         isEditingUnit = false
