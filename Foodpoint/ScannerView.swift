@@ -14,6 +14,11 @@ struct ScannerView: View {
     @State private var scannedProduct: FoodProduct?
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var didSave = false
+
+    private var canSave: Bool {
+        scannedProduct != nil && !didSave && !isLoading
+    }
 
     var body: some View {
         NavigationStack {
@@ -23,9 +28,11 @@ struct ScannerView: View {
                         .padding()
                 } else if let product = scannedProduct {
                     ProductDetailCard(product: product)
-                    Text("Saved")
-                        .font(.footnote)
-                        .foregroundStyle(.green)
+                    if didSave {
+                        Text("Saved")
+                            .font(.footnote)
+                            .foregroundStyle(.green)
+                    }
                 } else if let error = errorMessage {
                     ContentUnavailableView("Scan Failed", systemImage: "exclamationmark.triangle", description: Text(error))
                 } else {
@@ -33,16 +40,19 @@ struct ScannerView: View {
                 }
 
                 Button {
-                    errorMessage = nil
-                    isShowingScanner = true
+                    primaryAction()
                 } label: {
-                    Label("Scan Food Barcode", systemImage: "barcode.viewfinder")
-                        .font(.headline)
-                        .padding()
-                        .frame(maxWidth: .infinity)
+                    Label(
+                        canSave ? "Save" : "Scan Food Barcode",
+                        systemImage: canSave ? "checkmark.circle" : "barcode.viewfinder"
+                    )
+                    .font(.headline)
+                    .padding()
+                    .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .padding(.horizontal)
+                .disabled(isLoading)
             }
             .navigationTitle("Food Tracker")
             .sheet(isPresented: $isShowingScanner) {
@@ -60,15 +70,24 @@ struct ScannerView: View {
         }
     }
 
+    private func primaryAction() {
+        if canSave, let product = scannedProduct {
+            appState.addProduct(product)
+            didSave = true
+        }
+        errorMessage = nil
+        isShowingScanner = true
+    }
+
     private func fetchFoodData(for barcode: String) {
         isLoading = true
+        didSave = false
         Task {
             do {
                 let product = try await OpenFoodFactsService.shared.fetchProduct(barcode: barcode)
                 await MainActor.run {
                     self.scannedProduct = product
                     self.isLoading = false
-                    appState.addProduct(product)
                 }
             } catch {
                 await MainActor.run {
