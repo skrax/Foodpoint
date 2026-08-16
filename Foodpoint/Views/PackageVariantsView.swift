@@ -58,7 +58,7 @@ struct PackageVariantsView: View {
                 }
             }
             .sheet(item: $editingVariant) { variant in
-                VariantEditForm(barcode: barcode, existing: variant)
+                VariantEditForm(barcode: barcode, existing: variant, isDefault: variant.id == defaultID)
             }
             .sheet(isPresented: $isAddingVariant) {
                 VariantEditForm(
@@ -71,8 +71,38 @@ struct PackageVariantsView: View {
         }
     }
 
+    /// A plain `HStack` with `.onTapGesture` (not a `Button`), so the nested
+    /// pencil `Button` doesn't create ambiguous nested-button gesture
+    /// handling that can make `.swipeActions` unreliable.
     private func row(for variant: ProductUnit) -> some View {
-        Button {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(variant.name)
+                        .font(.headline)
+                    if variant.id == defaultID {
+                        Text("Default")
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.accentColor.opacity(0.2))
+                            .clipShape(Capsule())
+                    }
+                }
+                Text(description(for: variant))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button {
+                editingVariant = variant
+            } label: {
+                Image(systemName: "pencil")
+            }
+            .buttonStyle(.plain)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
             switch mode {
             case .select(let onSelect):
                 onSelect(variant)
@@ -80,35 +110,7 @@ struct PackageVariantsView: View {
             case .manage:
                 editingVariant = variant
             }
-        } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(variant.name)
-                            .font(.headline)
-                        if variant.id == defaultID {
-                            Text("Default")
-                                .font(.caption2)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.accentColor.opacity(0.2))
-                                .clipShape(Capsule())
-                        }
-                    }
-                    Text(description(for: variant))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button {
-                    editingVariant = variant
-                } label: {
-                    Image(systemName: "pencil")
-                }
-                .buttonStyle(.plain)
-            }
         }
-        .foregroundStyle(.primary)
     }
 
     private func description(for variant: ProductUnit) -> String {

@@ -8,6 +8,9 @@ import SwiftUI
 struct VariantEditForm: View {
     let barcode: String
     let existing: ProductUnit?
+    /// Whether `existing` is the barcode's default variant — if so, no
+    /// delete option is offered (mirrors `AppState.removeVariant`'s guard).
+    var isDefault: Bool = false
     var templateMode: UnitTrackingMode?
     var templateLabel: String?
 
@@ -17,6 +20,7 @@ struct VariantEditForm: View {
     @State private var name = ""
     @State private var weightText = ""
     @State private var countText = ""
+    @State private var isShowingDeleteConfirmation = false
 
     private var mode: UnitTrackingMode {
         existing?.trackingMode ?? templateMode ?? .count
@@ -49,6 +53,14 @@ struct VariantEditForm: View {
                             .keyboardType(.decimalPad)
                     }
                 }
+
+                if existing != nil, !isDefault {
+                    Section {
+                        Button("Delete Variant", role: .destructive) {
+                            isShowingDeleteConfirmation = true
+                        }
+                    }
+                }
             }
             .navigationTitle(existing == nil ? "New Package Size" : "Edit Package Size")
             .toolbar {
@@ -60,6 +72,12 @@ struct VariantEditForm: View {
                 }
             }
             .onAppear(perform: populate)
+            .alert("Delete \"\(name)\"?", isPresented: $isShowingDeleteConfirmation) {
+                Button("Delete", role: .destructive) { delete() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This can't be undone.")
+            }
         }
     }
 
@@ -90,6 +108,12 @@ struct VariantEditForm: View {
         } else {
             appState.addUnitVariant(unit, forBarcode: barcode)
         }
+        dismiss()
+    }
+
+    private func delete() {
+        guard let existing else { return }
+        appState.removeVariant(existing.id, forBarcode: barcode)
         dismiss()
     }
 }
