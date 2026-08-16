@@ -106,7 +106,12 @@ dependency" below).
     directly:
     - Package sizes: `allVariants(forBarcode:)`, `addUnitVariant(_:forBarcode:)`,
       `updateVariant(_:forBarcode:)`, `removeVariant(_:forBarcode:)` (guards
-      against deleting the default), `makeDefault(_:forBarcode:)`.
+      against deleting the default), `makeDefault(_:forBarcode:)`, and
+      `renameUnitLabel(_:forBarcode:)` (the count label — e.g. "slices",
+      "bars" — is a barcode-wide property shared by every variant, so this
+      renames it everywhere at once rather than letting one variant's label
+      drift out of sync with its siblings; a no-op for weight-tracked units,
+      whose label is always "g").
     - Nutrition: the same five methods with a `Nutrition`-suffixed/-infixed
       name (`allNutritionVariants`, `addNutritionVariant`,
       `updateNutritionVariant`, `removeNutritionVariant`,

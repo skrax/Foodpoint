@@ -132,6 +132,32 @@ struct AppStateTests {
         #expect(state.allVariants(forBarcode: barcode).count == 1)
     }
 
+    @Test("renameUnitLabel updates the default, every alternate, and the active item's unit at once")
+    func renameUnitLabelUpdatesEveryVariant() {
+        let state = AppState()
+        state.addProduct(product(), unit: unit(quantityPerPackage: 15)) // becomes default, label "bars"
+
+        let small = ProductUnit(name: "Small", label: "bars", quantityPerPackage: 10, gramsPerUnit: 40)
+        state.addUnitVariant(small, forBarcode: barcode)
+
+        state.renameUnitLabel("slices", forBarcode: barcode)
+
+        #expect(state.unitConfigs[barcode]?.label == "slices")
+        #expect(state.unitVariants[barcode]?.allSatisfy { $0.label == "slices" } == true)
+        #expect(state.items[0].unit.label == "slices")
+    }
+
+    @Test("renameUnitLabel is a no-op for weight-tracked units")
+    func renameUnitLabelNoOpForWeightTracked() {
+        let state = AppState()
+        let weightUnit = ProductUnit(label: "g", quantityPerPackage: 500, gramsPerUnit: 1)
+        state.addProduct(product(), unit: weightUnit)
+
+        state.renameUnitLabel("bogus", forBarcode: barcode)
+
+        #expect(state.unitConfigs[barcode]?.label == "g")
+    }
+
     @Test("updateVariant refreshes the saved item's unit when it's the active one")
     func updateVariantSyncsActiveItem() {
         let state = AppState()

@@ -26,7 +26,10 @@ isn't already known for this barcode, saving asks for a name (e.g.
 "Small") and whether to remember it for next time, or use it just this
 once. Named package-size variants can be reviewed, renamed, resized, added,
 and deleted from the "Package Sizes" screen, reachable from both the
-scanner and an item's detail view.
+scanner and an item's detail view. The count label itself (e.g. "slices",
+"bars") can also be corrected there at any time — since it applies to
+every variant of a barcode, renaming it in one variant's edit form updates
+all of them together.
 
 Nutrition works the same way. Some Open Food Facts entries report a
 `nutriments` object with every field zero rather than omitting it — the

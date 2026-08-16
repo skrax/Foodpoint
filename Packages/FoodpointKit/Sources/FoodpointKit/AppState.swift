@@ -108,6 +108,29 @@ public class AppState {
         unitConfigs[barcode] = newDefault
     }
 
+    /// Renames the count label shared by all of a barcode's package-size
+    /// variants (e.g. correcting "slice" to "bar"). The label is a
+    /// barcode-wide property — every variant of a count-tracked product
+    /// counts the same kind of unit — so this updates the default and every
+    /// alternate at once, plus any saved item currently using one of them,
+    /// rather than letting a single variant's edit drift out of sync with
+    /// its siblings. No-op for weight-tracked units: their label is always
+    /// "g", since `ProductUnit.trackingMode` infers `.weight` specifically
+    /// from that label.
+    public func renameUnitLabel(_ label: String, forBarcode barcode: String) {
+        guard unitConfigs[barcode]?.trackingMode == .count else { return }
+        unitConfigs[barcode]?.label = label
+        if var list = unitVariants[barcode] {
+            for index in list.indices {
+                list[index].label = label
+            }
+            unitVariants[barcode] = list
+        }
+        if let index = items.firstIndex(where: { $0.id == barcode }), items[index].unit.trackingMode == .count {
+            items[index].unit.label = label
+        }
+    }
+
     // MARK: - Nutrition variants
     //
     // Mirrors the package-variant methods above exactly (allVariants ->

@@ -1,11 +1,13 @@
 import SwiftUI
 import FoodpointKit
 
-/// Add or rename/resize a single package-size variant. Tracking mode and
-/// label are locked to match the barcode's other variants (inferred from
-/// `existing`, or from `templateMode`/`templateLabel` when adding the very
-/// first one) — only the name, weight, and (for count-tracked units) count
-/// can change.
+/// Add or rename/resize a single package-size variant. Tracking mode is
+/// locked to match the barcode's other variants (inferred from `existing`,
+/// or from `templateMode` when adding the very first one) — only the name,
+/// weight, count-tracked units' label, and count can change. Editing the
+/// label here applies to every variant of this barcode at once (via
+/// `AppState.renameUnitLabel`), since they're meant to share one counting
+/// unit — see that method's doc comment.
 struct VariantEditForm: View {
     let barcode: String
     let existing: ProductUnit?
@@ -19,16 +21,13 @@ struct VariantEditForm: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""
+    @State private var labelText = ""
     @State private var weightText = ""
     @State private var countText = ""
     @State private var isShowingDeleteConfirmation = false
 
     private var mode: UnitTrackingMode {
         existing?.trackingMode ?? templateMode ?? .count
-    }
-
-    private var label: String {
-        existing?.label ?? templateLabel ?? "items"
     }
 
     var body: some View {
@@ -50,7 +49,9 @@ struct VariantEditForm: View {
                         .keyboardType(.decimalPad)
 
                     if mode == .count {
-                        TextField("Count (\(label))", text: $countText)
+                        TextField("Count label (e.g. slices, bars)", text: $labelText)
+
+                        TextField("Count (\(labelText.isEmpty ? "items" : labelText))", text: $countText)
                             .keyboardType(.decimalPad)
                     }
                 }
@@ -88,6 +89,7 @@ struct VariantEditForm: View {
     }
 
     private func populate() {
+        labelText = existing?.label ?? templateLabel ?? "items"
         guard let existing else { return }
         name = existing.name
         weightText = existing.packageWeight.map {
@@ -105,7 +107,7 @@ struct VariantEditForm: View {
             name: trimmedName.isEmpty ? "Variant" : trimmedName,
             mode: mode,
             packageWeight: weightText.localizedDouble,
-            countLabel: label,
+            countLabel: labelText,
             countPerPackage: countText.localizedDouble
         )
 
@@ -113,6 +115,9 @@ struct VariantEditForm: View {
             appState.updateVariant(unit, forBarcode: barcode)
         } else {
             appState.addUnitVariant(unit, forBarcode: barcode)
+        }
+        if mode == .count {
+            appState.renameUnitLabel(unit.label, forBarcode: barcode)
         }
         dismiss()
     }
