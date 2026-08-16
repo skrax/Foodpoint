@@ -132,24 +132,24 @@ struct NutritionVariantEditForm: View {
         )
 
         if existing != nil {
-            appState.updateNutritionVariant(variant, forBarcode: barcode)
-        } else if appState.nutritionConfigs[barcode] == nil {
-            appState.setDefaultNutritionVariant(variant, forBarcode: barcode)
+            appState.pantry.updateNutritionVariant(variant, forBarcode: barcode)
+        } else if appState.pantry.nutritionConfigs[barcode] == nil {
+            appState.pantry.setDefaultNutritionVariant(variant, forBarcode: barcode)
         } else {
-            appState.addNutritionVariant(variant, forBarcode: barcode)
+            appState.pantry.addNutritionVariant(variant, forBarcode: barcode)
         }
         dismiss()
     }
 
     private func delete() {
         guard let existing else { return }
-        appState.removeNutritionVariant(existing.id, forBarcode: barcode)
+        appState.pantry.removeNutritionVariant(existing.id, forBarcode: barcode)
         dismiss()
     }
 
     private func makeDefault() {
         guard let existing else { return }
-        appState.makeNutritionDefault(existing.id, forBarcode: barcode)
+        appState.pantry.makeNutritionDefault(existing.id, forBarcode: barcode)
         dismiss()
     }
 

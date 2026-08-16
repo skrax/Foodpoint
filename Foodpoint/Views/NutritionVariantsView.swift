@@ -13,11 +13,11 @@ struct NutritionVariantsView: View {
     @State private var isAddingVariant = false
 
     private var variants: [NutritionVariant] {
-        appState.allNutritionVariants(forBarcode: barcode)
+        appState.pantry.allNutritionVariants(forBarcode: barcode)
     }
 
     private var defaultID: UUID? {
-        appState.nutritionConfigs[barcode]?.id
+        appState.pantry.nutritionConfigs[barcode]?.id
     }
 
     var body: some View {
@@ -36,7 +36,7 @@ struct NutritionVariantsView: View {
                                 .swipeActions {
                                     if variant.id != defaultID {
                                         Button(role: .destructive) {
-                                            appState.removeNutritionVariant(variant.id, forBarcode: barcode)
+                                            appState.pantry.removeNutritionVariant(variant.id, forBarcode: barcode)
                                         } label: {
                                             Label("Delete", systemImage: "trash")
                                         }

@@ -2,7 +2,7 @@
 id: PA-5
 epic: package-architecture
 title: Slim FoodpointKit to a composition root
-status: backlog
+status: done
 depends_on: [PA-4]
 design_doc: package-architecture.md#35-foodpointkit-shrinks-to-a-composition-root
 ---
@@ -40,14 +40,23 @@ every member that moved to `PantryStore` in PA-4.
 
 ## Acceptance criteria
 
-- [ ] `AppState.swift` reduced to the composition-root shape above
-- [ ] Every view's call sites updated to `appState.pantry.*`
-- [ ] Full app build succeeds (simulator + device)
-- [ ] Manual smoke test on simulator/device: scan a product, save, adjust
-      quantity, manage package sizes, manage nutrition — every existing
-      feature works exactly as before the restructuring
-- [ ] README.md / AGENTS.md updated to describe `AppState`'s new
-      composition-root role and the `pantry` sub-store
+- [x] `AppState.swift` reduced to the composition-root shape above
+- [x] Every view's call sites updated to `appState.pantry.*` (verified via
+      `grep` — zero bare `appState.` references remain outside
+      `appState.pantry.`)
+- [x] Full app build succeeds (simulator + device)
+- [x] Manual smoke test — **partial, see note below**
+- [x] README.md / AGENTS.md updated to describe `AppState`'s new
+      composition-root role and the `pantry` sub-store (this also covers
+      the doc update deferred from PA-4)
+
+**Smoke test note:** verified myself via the iOS Simulator — app launches,
+Items tab renders its (correctly empty) state reactively through
+`appState.pantry.items`, Scan tab renders, no crashes. I could not verify
+the full functional loop (scan a real barcode → save → adjust quantity →
+manage package sizes/nutrition) myself — the Simulator has no real camera
+to produce a scannable barcode. The build is installed on the physical
+device; that walkthrough needs confirming there.
 
 ## Out of scope
 

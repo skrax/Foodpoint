@@ -75,12 +75,12 @@ struct NutritionUpdateView: View {
     }
 
     private func keepCurrent() {
-        appState.refreshNutritionVariant(updatedOFFVariant, forBarcode: barcode)
+        appState.pantry.refreshNutritionVariant(updatedOFFVariant, forBarcode: barcode)
         finish()
     }
 
     private func useOpenFoodFacts() {
-        appState.setDefaultNutritionVariant(updatedOFFVariant, forBarcode: barcode)
+        appState.pantry.setDefaultNutritionVariant(updatedOFFVariant, forBarcode: barcode)
         finish()
     }
 

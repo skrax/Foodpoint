@@ -7,7 +7,7 @@ struct ItemsView: View {
     @Environment(AppState.self) private var appState
 
     private var sortedItems: [FoodItem] {
-        appState.items.sorted { ($0.product.name ?? "") < ($1.product.name ?? "") }
+        appState.pantry.items.sorted { ($0.product.name ?? "") < ($1.product.name ?? "") }
     }
 
     var body: some View {

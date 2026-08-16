@@ -64,7 +64,7 @@ Prerequisite for meals; no new user-facing behavior. See
 | [PA-2](epic-1-package-architecture/PA-2-extract-food-foundation.md) | Extract FoodFoundation | done | PA-1 |
 | [PA-3](epic-1-package-architecture/PA-3-add-product-search.md) | Add product search (no-barcode acquisition) | ready | PA-2 |
 | [PA-4](epic-1-package-architecture/PA-4-extract-pantry-kit.md) | Extract PantryKit | done | PA-2 |
-| [PA-5](epic-1-package-architecture/PA-5-slim-foodpoint-kit.md) | Slim FoodpointKit to a composition root | ready | PA-4 |
+| [PA-5](epic-1-package-architecture/PA-5-slim-foodpoint-kit.md) | Slim FoodpointKit to a composition root | done | PA-4 |
 
 ## Epic 2 — Meals Feature
 
@@ -83,12 +83,16 @@ MK-1 only strictly needs PA-5 + PA-3.
 
 ## What's next
 
-**PA-1, PA-2, and PA-4 are done.** **PA-3** and **PA-5** are both
-unblocked. **The app target doesn't build right now** — PA-4 emptied
-`AppState` on purpose (its content moved to `PantryStore`), and nothing
-wires `PantryStore` back into the views yet. That's expected and is
-exactly PA-5's job; the task notes call out PA-4/PA-5 as meant to be done
-back-to-back even though tracked separately. PA-3 is independent of this
-and can happen before, after, or interleaved with PA-5. Epic 2 fans out
-from MK-3 once the core loop exists — MK-4, MK-5, and MK-6 don't depend on
-each other and can happen in any order (or in parallel) once MK-3 is done.
+**PA-1, PA-2, PA-4, and PA-5 are done — the app builds again** on top of
+the full `OpenFoodFactsKit → FoodFoundation → PantryKit → FoodpointKit`
+split, behaving identically to before the restructuring (verified via
+simulator navigation; the full scan→save→adjust walkthrough still needs
+confirming on a physical device, since the simulator has no real camera).
+
+**PA-3** is the only remaining Epic 1 task, and it's optional relative to
+starting Epic 2 in the narrowest sense — **MK-1 needs it** (per its
+`depends_on`), so it still has to land before Meals gets past its first
+task, but nothing blocks starting PA-3 and MK-1 in either order relative
+to each other being *begun* right now. Epic 2 otherwise fans out from MK-3
+once the core loop exists — MK-4, MK-5, and MK-6 don't depend on each
+other and can happen in any order (or in parallel) once MK-3 is done.

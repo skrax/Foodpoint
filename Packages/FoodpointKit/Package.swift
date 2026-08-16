@@ -9,11 +9,13 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../FoodFoundation"),
+        .package(path: "../PantryKit"),
     ],
     targets: [
-        .target(name: "FoodpointKit", dependencies: ["FoodFoundation"]),
-        // No test target for now: AppState's logic moved to PantryKit (PA-4)
-        // and there's nothing left here worth testing until PA-5 adds real
-        // composition-root/orchestration logic. Re-add FoodpointKitTests then.
+        .target(name: "FoodpointKit", dependencies: ["FoodFoundation", "PantryKit"]),
+        // No test target for now: composing `pantry: PantryStore` is pure
+        // wiring, no logic of its own yet. Re-add FoodpointKitTests once
+        // MealKit lands and AppState gains real orchestration to test
+        // (see package-architecture.md §3.5, §4.2).
     ]
 )

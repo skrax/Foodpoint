@@ -17,14 +17,14 @@ struct ItemDetailView: View {
     @State private var isShowingNutritionManager = false
 
     private var item: FoodItem? {
-        appState.items.first { $0.id == itemID }
+        appState.pantry.items.first { $0.id == itemID }
     }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
                 if let item {
-                    ProductDetailCard(product: item.product, nutritionSource: appState.nutritionConfigs[item.id]?.source)
+                    ProductDetailCard(product: item.product, nutritionSource: appState.pantry.nutritionConfigs[item.id]?.source)
 
                     if let grams = item.unit.gramsPerUnit, let perUnit = nutritionPerUnit(for: item) {
                         nutritionPerUnitSection(perUnit, label: item.unit.label, grams: grams)
@@ -64,7 +64,7 @@ struct ItemDetailView: View {
         }
         .onChange(of: isQuantityFocused) { _, focused in
             if !focused, let value = quantityText.localizedDouble {
-                appState.setQuantity(value, forItemID: itemID)
+                appState.pantry.setQuantity(value, forItemID: itemID)
             }
         }
         .onChange(of: item == nil) { _, isGone in
@@ -109,7 +109,7 @@ struct ItemDetailView: View {
 
     private func adjust(by delta: Double, item: FoodItem) {
         let newValue = max(0, item.quantity + delta)
-        appState.setQuantity(newValue, forItemID: itemID)
+        appState.pantry.setQuantity(newValue, forItemID: itemID)
         quantityText = formatted(newValue)
     }
 

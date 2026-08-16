@@ -13,16 +13,18 @@ into named places — was built and then deliberately scrapped; the flat
 item list is the current, intentional design, not a placeholder.)
 
 All business logic lives in local, UI-agnostic Swift packages (no
-`import SwiftUI`, no view code anywhere in them), each with its own unit
-test suite: `FoodFoundation` holds the shared domain types and product
-lookup, and `FoodpointKit` holds app state and CRUD logic on top of it. The
+`import SwiftUI`, no view code anywhere in them): `FoodFoundation` holds
+the shared domain types and product lookup; `PantryKit` holds the pantry's
+state and CRUD logic on top of it (each with its own unit test suite);
+`FoodpointKit` is a thin composition root exposing all of this as a single
+`AppState`, the object the app actually injects into its environment. The
 `Foodpoint` app target is a thin driver: SwiftUI views, the AVFoundation
-camera wrapper, and glue code that calls into `FoodpointKit`.
+camera wrapper, and glue code that reads/writes `appState.pantry.*`.
 **New logic — state mutation, derived values, parsing, anything that isn't
 literally rendering UI — belongs in a package, not in a view.** This split
 exists specifically so that logic can be unit tested without a simulator;
 don't undermine it by reaching for `@State`/view-local logic where a
-testable `AppState` method (or a `FoodFoundation` type) would do.
+testable `PantryStore` method (or a `FoodFoundation` type) would do.
 
 ## Build & test
 
@@ -42,8 +44,10 @@ business-logic changes:
 
 ```bash
 cd Packages/FoodFoundation && swift test
-cd Packages/FoodpointKit && swift test
+cd Packages/PantryKit && swift test
 ```
+
+(`FoodpointKit` has no test target right now — see its bullet below.)
 
 Run the relevant package's tests after any change to it, and add/update
 tests for new or changed behavior — see "Testing conventions" below. There
@@ -81,8 +85,9 @@ dependency" below).
   - `ScannerView.swift`, `ContentView.swift`, `FoodpointApp.swift` — the
     latter injects `AppState.shared` into the environment.
   - `Views/` — SwiftUI views. Keep bodies declarative; push non-trivial
-    logic into `FoodpointKit` (a new/extended `AppState` method, or a
-    computed property on a model type) rather than into the view.
+    logic into `PantryKit` (a new/extended `PantryStore` method, reached
+    via `appState.pantry`) or a `FoodFoundation` computed property, rather
+    than into the view.
   - `Scanners/` — Barcode scanning. Wraps `AVFoundation`
     (`AVCaptureSession`) directly via `UIViewRepresentable`; not a
     SwiftUI-native camera API, and specifically not VisionKit's
@@ -91,21 +96,42 @@ dependency" below).
     (e.g. a text field's current string) just use `@State` directly. Only
     introduce a dedicated view model if a view's *UI* logic grows complex
     enough to warrant its own tests; state that represents saved/business
-    data belongs in `AppState`, not a view model.
+    data belongs in `PantryStore` (via `appState.pantry`), not a view model.
 
-- `Packages/FoodpointKit/` (local package, product `FoodpointKit`) — app
-  state and CRUD logic, no `import SwiftUI` anywhere in it. Depends on
-  `FoodFoundation` (re-exported — see below):
+- `Packages/FoodpointKit/` (local package, product `FoodpointKit`) — the
+  composition root, no `import SwiftUI` anywhere in it. Depends on
+  `FoodFoundation` and `PantryKit` (both re-exported — see below):
   - `Sources/FoodpointKit/AppState.swift` — the `@Observable` state
-    container. The app uses the `AppState.shared` singleton via
-    `@Environment(AppState.self)`; `init()` is public rather than private
-    specifically so tests can construct isolated instances instead of
-    sharing global state across test cases — always construct a fresh
-    `AppState()` in a test, never touch `.shared`. `@_exported import
-    FoodFoundation` at the top means any file that imports `FoodpointKit`
-    (the app included) can use `Product`, `Nutrition`, `ProductUnit`,
-    `NutritionVariant`, etc. directly without importing `FoodFoundation`
-    itself — keep that re-export if you touch this file's imports. Holds
+    container the app actually uses, via the `AppState.shared` singleton
+    and `@Environment(AppState.self)`; `init()` is public rather than
+    private specifically so tests can construct isolated instances instead
+    of sharing global state across test cases. Holds no logic of its own —
+    just `public let pantry = PantryStore()` (and, once `MealKit` exists,
+    `meals: MealStore` alongside it). Deliberately **no forwarding
+    properties**: call sites go through `appState.pantry.*`, not
+    `appState.*`, since re-declaring `PantryStore`'s whole surface here
+    would just be boilerplate duplicating an API one property away (see
+    package-architecture.md §3.5). `@_exported import FoodFoundation` and
+    `@_exported import PantryKit` at the top mean any file that imports
+    `FoodpointKit` (the app included) can use `Product`, `PantryStore`,
+    `FoodItem`, etc. directly without importing those packages itself —
+    keep those re-exports if you touch this file's imports.
+  - **No test target right now.** Composing `pantry: PantryStore` is pure
+    wiring with no logic of its own to test; `FoodpointKitTests` returns
+    once cross-domain orchestration lands here (e.g. a future meal-logged
+    event decrementing pantry stock — see package-architecture.md §3.5,
+    §4.2). An empty declared test target makes `swift test` hard-error
+    (`swift build` only warns), so the target is removed rather than left
+    empty — re-add it in `Package.swift` when there's something to put in it.
+
+- `Packages/PantryKit/` (local package, product `PantryKit`) — the
+  pantry's state and CRUD logic, no `import SwiftUI` anywhere in it.
+  Depends on `FoodFoundation` only — no dependency on `FoodpointKit`, and
+  (once it exists) no dependency on `MealKit` either; the two are meant to
+  stay decoupled peers, per package-architecture.md §1:
+  - `Sources/PantryKit/PantryStore.swift` — the `@Observable` store.
+    Construct a fresh `PantryStore()` in tests, never a shared singleton —
+    it's a single mutable instance and tests may run in any order. Holds
     the flat `items: [FoodItem]` list, plus two parallel variant systems
     keyed by barcode, each with a default (`unitConfigs`/`nutritionConfigs`,
     persisted independently of `items` so they survive an item being fully
@@ -131,11 +157,12 @@ dependency" below).
       `refreshNutritionVariant` (apply the user's choice from that
       prompt). See `ScannerView`'s `knownProductNutritionStatus` and
       `NutritionUpdateView` for how the app drives these.
-  - `Sources/FoodpointKit/Models/FoodItem.swift` — a saved product +
-    quantity + unit. The one model type that stays here rather than in
-    `FoodFoundation`, since it's app-state shaped (references a live
-    `Product`), not a shared domain vocabulary type.
-  - `Tests/FoodpointKitTests/` — Swift Testing (`import Testing`, `@Test`,
+  - `Sources/PantryKit/Models/FoodItem.swift` — a saved product + quantity
+    + unit. The one model type that lives here rather than in
+    `FoodFoundation`, since it's pantry-state shaped (references a live
+    `Product`), not a shared domain vocabulary type — `MealKit` will never
+    have a `FoodItem` of its own.
+  - `Tests/PantryKitTests/` — Swift Testing (`import Testing`, `@Test`,
     `#expect`), not XCTest. See "Testing conventions" below.
 
 - `Packages/FoodFoundation/` (local package, product `FoodFoundation`) —
@@ -159,13 +186,14 @@ dependency" below).
     (best-effort category/icon guess from Open Food Facts tags), and
     `NumericInput` (`String.localizedDouble` — see "Numeric text input"
     below). Note: `ProductUnit`/`NutritionVariant` are the plain *types*
-    only — their per-barcode variant CRUD lives in `AppState`, not here.
+    only — their per-barcode variant CRUD lives in `PantryKit.PantryStore`,
+    not here.
     `Nutrition.isEffectivelyEmpty` (all fields nil-or-zero) is the check
     used to treat an Open-Food-Facts entry with no real data as "no data"
     instead of displaying zeroes — some OFF products carry a `nutriments`
     object with every field blank rather than omitting it.
   - `Tests/FoodFoundationTests/` — Swift Testing, same conventions as
-    `FoodpointKitTests`.
+    `PantryKitTests`.
 
 - `Packages/OpenFoodFactsKit/` (local package, product `OpenFoodFactsKit`) —
   all networking and wire-format types for the Open Food Facts v2 API:
@@ -173,11 +201,11 @@ dependency" below).
   (Decodable DTOs matching OFF's JSON), and `OpenFoodFactsError`. Public so
   `FoodFoundation` can consume them, but treat them as **wire-format
   only** — never store one on a model or pass one outside
-  `ProductLookup.swift`. Has no dependency on either other package
+  `ProductLookup.swift`. Has no dependency on any other package
   (dependency direction is one-way: `Foodpoint` app -> `FoodpointKit` ->
-  `FoodFoundation` -> `OpenFoodFactsKit`).
+  `PantryKit` -> `FoodFoundation` -> `OpenFoodFactsKit`).
 
-All three packages build standalone (`cd Packages/<name> && swift build`),
+All four packages build standalone (`cd Packages/<name> && swift build`),
 and are kept free of any dependency on the app target — that's what makes
 them unit-testable without a simulator.
 
@@ -198,10 +226,10 @@ Every package's test target uses **Swift Testing**, not XCTest —
 for tests that need to fail loudly on setup errors. Match this style for
 new tests rather than introducing XCTest.
 
-- Construct a fresh `AppState()` per test — never share `AppState.shared`
-  across tests, since it's a single mutable instance and tests may run in
-  any order.
-- Test business logic (`AppState`'s CRUD in `FoodpointKitTests`; model
+- Construct a fresh `PantryStore()` per test — never share a global
+  singleton across tests, since it's a single mutable instance and tests
+  may run in any order.
+- Test business logic (`PantryStore`'s CRUD in `PantryKitTests`; model
   computed properties/static factories like `ProductUnit.make` in
   `FoodFoundationTests`) thoroughly; there is no view-layer test target,
   so don't try to test SwiftUI views here.
@@ -222,9 +250,9 @@ new tests rather than introducing XCTest.
 Adding a local Swift package to the Xcode project (a new package, not a
 new file in an existing one) requires hand-editing `project.pbxproj` — this
 project has no packages added via Xcode's GUI to copy prior art from; the
-existing `OpenFoodFactsKit`/`FoodpointKit`/`FoodFoundation` entries (all
-hand-added the same way) are the template. The shape needed (see the
-existing `F00DFACE...` entries as a template):
+existing `OpenFoodFactsKit`/`FoodpointKit`/`FoodFoundation`/`PantryKit`
+entries (all hand-added the same way) are the template. The shape needed
+(see the existing `F00DFACE...` entries as a template):
 1. A `PBXBuildFile` wrapping a `productRef` (in the app target's
    `Frameworks` build phase's `files`).
 2. An `XCLocalSwiftPackageReference` (`relativePath` to the package

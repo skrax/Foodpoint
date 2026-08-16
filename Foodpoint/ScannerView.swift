@@ -72,8 +72,8 @@ struct ScannerView: View {
                 } else if let product = scannedProduct {
                     ProductDetailCard(
                         product: product,
-                        nutritionOverride: appState.nutritionConfigs[product.id]?.nutrition,
-                        nutritionSource: appState.nutritionConfigs[product.id]?.source
+                        nutritionOverride: appState.pantry.nutritionConfigs[product.id]?.nutrition,
+                        nutritionSource: appState.pantry.nutritionConfigs[product.id]?.source
                     )
                     if didSave {
                         Text("Saved")
@@ -176,7 +176,7 @@ struct ScannerView: View {
                 if let product = scannedProduct, let update = pendingNutritionUpdate {
                     NutritionUpdateView(
                         barcode: product.id,
-                        currentVariant: appState.nutritionConfigs[product.id],
+                        currentVariant: appState.pantry.nutritionConfigs[product.id],
                         updatedOFFVariant: update
                     ) {
                         pendingNutritionUpdate = nil
@@ -231,14 +231,14 @@ struct ScannerView: View {
     }
 
     /// For a brand-new barcode with no usable nutrition data yet — checked
-    /// against whatever's already configured (`appState.nutritionConfigs`),
+    /// against whatever's already configured (`appState.pantry.nutritionConfigs`),
     /// not just this scan's raw Open Food Facts fetch, so the banner
     /// disappears immediately once custom values are added via the sheet
     /// below — offers a way to enter it manually. It becomes this barcode's
     /// default nutrition variant immediately (independent of tapping Save).
     @ViewBuilder
     private var newProductNutritionStatus: some View {
-        let resolved = scannedProduct.flatMap { appState.nutritionConfigs[$0.id]?.nutrition } ?? scannedProduct?.nutrition
+        let resolved = scannedProduct.flatMap { appState.pantry.nutritionConfigs[$0.id]?.nutrition } ?? scannedProduct?.nutrition
         if resolved == nil || (resolved?.isEffectivelyEmpty ?? true) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("No nutrition data from Open Food Facts.")
@@ -272,7 +272,7 @@ struct ScannerView: View {
     /// button opens `PackageVariantsView` to jump to, rename, or manage any
     /// remembered variant.
     private func knownUnitFields(for product: Product) -> some View {
-        let base = appState.unitConfigs[product.id]
+        let base = appState.pantry.unitConfigs[product.id]
         return VStack(spacing: 8) {
             Text("Package size")
                 .font(.caption)
@@ -366,7 +366,7 @@ struct ScannerView: View {
     /// the barcode's fixed label/grams-per-unit — the parts of the unit that
     /// can't change per scan.
     private func candidateUnit(for product: Product) -> ProductUnit? {
-        guard let base = appState.unitConfigs[product.id],
+        guard let base = appState.pantry.unitConfigs[product.id],
               let weight = packageWeightText.localizedDouble, weight > 0 else { return nil }
         switch base.trackingMode {
         case .weight:
@@ -380,7 +380,7 @@ struct ScannerView: View {
     /// A known variant whose quantity matches `candidate`, if any — saving
     /// reuses it as-is rather than the freshly-typed (and float-rounded) value.
     private func matchingKnownVariant(_ candidate: ProductUnit, for barcode: String) -> ProductUnit? {
-        appState.allVariants(forBarcode: barcode).first { abs($0.quantityPerPackage - candidate.quantityPerPackage) < 0.01 }
+        appState.pantry.allVariants(forBarcode: barcode).first { abs($0.quantityPerPackage - candidate.quantityPerPackage) < 0.01 }
     }
 
     private func variantPromptMessage(for unit: ProductUnit) -> String {
@@ -395,7 +395,7 @@ struct ScannerView: View {
         guard let product = scannedProduct else { return }
 
         if isNewProduct {
-            appState.addProduct(product, unit: unitFromFields())
+            appState.pantry.addProduct(product, unit: unitFromFields())
             didSave = true
             scanAgain()
             return
@@ -403,7 +403,7 @@ struct ScannerView: View {
 
         guard let candidate = candidateUnit(for: product) else { return }
         if let matched = matchingKnownVariant(candidate, for: product.id) {
-            appState.addProduct(product, unit: matched)
+            appState.pantry.addProduct(product, unit: matched)
             didSave = true
             scanAgain()
         } else {
@@ -419,9 +419,9 @@ struct ScannerView: View {
         if storeVariant {
             let trimmed = pendingVariantName.trimmingCharacters(in: .whitespacesAndNewlines)
             finalUnit.name = trimmed.isEmpty ? "Variant" : trimmed
-            appState.addUnitVariant(finalUnit, forBarcode: product.id)
+            appState.pantry.addUnitVariant(finalUnit, forBarcode: product.id)
         }
-        appState.addProduct(product, unit: finalUnit)
+        appState.pantry.addProduct(product, unit: finalUnit)
         didSave = true
         pendingUnit = nil
         pendingVariantName = ""
@@ -459,12 +459,12 @@ struct ScannerView: View {
                 await MainActor.run {
                     self.scannedProduct = product
                     self.isLoading = false
-                    if let base = appState.unitConfigs[barcode] {
+                    if let base = appState.pantry.unitConfigs[barcode] {
                         self.isNewProduct = false
                         self.packageWeightText = base.packageWeight.map {
                             $0.formatted(.number.precision(.fractionLength(0...2)))
                         } ?? ""
-                        self.pendingNutritionUpdate = appState.pendingNutritionUpdate(from: product.nutrition, forBarcode: barcode)
+                        self.pendingNutritionUpdate = appState.pantry.pendingNutritionUpdate(from: product.nutrition, forBarcode: barcode)
                     } else {
                         self.isNewProduct = true
                     }

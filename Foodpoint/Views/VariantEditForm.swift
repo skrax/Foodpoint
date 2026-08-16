@@ -112,19 +112,19 @@ struct VariantEditForm: View {
         )
 
         if existing != nil {
-            appState.updateVariant(unit, forBarcode: barcode)
+            appState.pantry.updateVariant(unit, forBarcode: barcode)
         } else {
-            appState.addUnitVariant(unit, forBarcode: barcode)
+            appState.pantry.addUnitVariant(unit, forBarcode: barcode)
         }
         if mode == .count {
-            appState.renameUnitLabel(unit.label, forBarcode: barcode)
+            appState.pantry.renameUnitLabel(unit.label, forBarcode: barcode)
         }
         dismiss()
     }
 
     private func delete() {
         guard let existing else { return }
-        appState.removeVariant(existing.id, forBarcode: barcode)
+        appState.pantry.removeVariant(existing.id, forBarcode: barcode)
         dismiss()
     }
 
@@ -133,7 +133,7 @@ struct VariantEditForm: View {
     /// implicit side effect of Save.
     private func makeDefault() {
         guard let existing else { return }
-        appState.makeDefault(existing.id, forBarcode: barcode)
+        appState.pantry.makeDefault(existing.id, forBarcode: barcode)
         dismiss()
     }
 }

@@ -22,11 +22,11 @@ struct PackageVariantsView: View {
     @State private var isAddingVariant = false
 
     private var variants: [ProductUnit] {
-        appState.allVariants(forBarcode: barcode)
+        appState.pantry.allVariants(forBarcode: barcode)
     }
 
     private var defaultID: UUID? {
-        appState.unitConfigs[barcode]?.id
+        appState.pantry.unitConfigs[barcode]?.id
     }
 
     var body: some View {
@@ -37,7 +37,7 @@ struct PackageVariantsView: View {
                         .swipeActions {
                             if variant.id != defaultID {
                                 Button(role: .destructive) {
-                                    appState.removeVariant(variant.id, forBarcode: barcode)
+                                    appState.pantry.removeVariant(variant.id, forBarcode: barcode)
                                 } label: {
                                     Label("Delete", systemImage: "trash")
                                 }

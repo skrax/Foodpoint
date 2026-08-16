@@ -10,9 +10,12 @@ All of the app's business logic — state, models, and the Open Food Facts
 integration — lives in local, UI-agnostic Swift packages, each with its own
 unit test suite: `Packages/FoodFoundation` holds the shared domain types
 (`Product`, `Nutrition`, `ProductUnit`, `NutritionVariant`, `FoodCategory`)
-and product lookup, and `Packages/FoodpointKit` holds the app's state and
-CRUD logic on top of it. The SwiftUI app is a thin driver on top of both:
-views, the camera scanner, and not much else.
+and product lookup; `Packages/PantryKit` holds the pantry's state and CRUD
+logic on top of it (what's saved, how it's counted, its nutrition); and
+`Packages/FoodpointKit` is a thin composition root tying that together as
+`AppState`, the single object the app injects into its environment. The
+SwiftUI app is a thin driver on top of all three: views, the camera
+scanner, and not much else.
 
 Each product's quantity can be tracked either as a **count** (e.g. 12
 "bars", 15 "slices") or by **weight** (grams) — configured once per
@@ -83,8 +86,12 @@ touching Xcode or a simulator:
 
 ```bash
 cd Packages/FoodFoundation && swift test
-cd Packages/FoodpointKit && swift test
+cd Packages/PantryKit && swift test
 ```
+
+(`FoodpointKit` has no test target right now — it's pure composition/wiring
+with no logic of its own yet; that returns once it has real orchestration
+to test.)
 
 ## Project layout
 
@@ -93,18 +100,26 @@ Foodpoint/
   FoodpointApp.swift   App entry point
   ContentView.swift    Root tab bar (Items, Scan)
   ScannerView.swift    Scan tab: barcode -> ProductLookup.fetch -> save/discard
-  Views/               SwiftUI views only — no business logic
+  Views/               SwiftUI views only — no business logic; read/write
+                        pantry state via `appState.pantry.*`
   Scanners/             Barcode scanning (AVFoundation-backed UIViewRepresentable)
 
 Packages/
-  FoodpointKit/          Local Swift package: app state and CRUD logic, UI-agnostic
+  FoodpointKit/          Local Swift package: the composition root
     Sources/FoodpointKit/
-      AppState.swift      App state + all CRUD logic (items, units, nutrition)
+      AppState.swift      `AppState.shared` holds `pantry: PantryStore`
+                           (and, in future, `meals: MealStore`); no logic
+                           of its own beyond composing them
+
+  PantryKit/              Local Swift package: pantry state and CRUD, UI-agnostic
+    Sources/PantryKit/
+      PantryStore.swift    Items, package-size/nutrition variants, and all
+                            their CRUD (what used to be on AppState)
       Models/FoodItem.swift  A saved product + quantity + unit
-    Tests/FoodpointKitTests/  Swift Testing unit tests
+    Tests/PantryKitTests/  Swift Testing unit tests
 
   FoodFoundation/        Local Swift package: shared domain types and product
-                          lookup, depended on by FoodpointKit
+                          lookup, depended on by PantryKit (and, in future, MealKit)
     Sources/FoodFoundation/
       ProductLookup.swift  Maps OpenFoodFactsKit's DTOs to Product/Nutrition
                             and resolves a barcode to a Product; the only
