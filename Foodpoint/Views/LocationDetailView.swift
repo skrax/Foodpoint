@@ -74,13 +74,21 @@ struct LocationDetailView: View {
 
     private func row(for item: LocationItem) -> some View {
         HStack {
-            VStack(alignment: .leading) {
-                Text(item.product.productName ?? "Unknown Product")
-                    .font(.headline)
-                if let brands = item.product.brands {
-                    Text(brands)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+            NavigationLink {
+                ScrollView {
+                    ProductDetailCard(product: item.product)
+                }
+                .navigationTitle(item.product.productName ?? "Product")
+                .navigationBarTitleDisplayMode(.inline)
+            } label: {
+                VStack(alignment: .leading) {
+                    Text(item.product.productName ?? "Unknown Product")
+                        .font(.headline)
+                    if let brands = item.product.brands {
+                        Text(brands)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             Spacer()
