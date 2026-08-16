@@ -56,6 +56,11 @@ struct VariantEditForm: View {
 
                 if existing != nil, !isDefault {
                     Section {
+                        Button("Make Default") {
+                            makeDefault()
+                        }
+                    }
+                    Section {
                         Button("Delete Variant", role: .destructive) {
                             isShowingDeleteConfirmation = true
                         }
@@ -114,6 +119,15 @@ struct VariantEditForm: View {
     private func delete() {
         guard let existing else { return }
         appState.removeVariant(existing.id, forBarcode: barcode)
+        dismiss()
+    }
+
+    /// Acts on the variant as stored, ignoring any unsaved edits still in
+    /// the form fields — a deliberate, standalone action rather than an
+    /// implicit side effect of Save.
+    private func makeDefault() {
+        guard let existing else { return }
+        appState.makeDefault(existing.id, forBarcode: barcode)
         dismiss()
     }
 }

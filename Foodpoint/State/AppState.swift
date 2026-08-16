@@ -76,6 +76,20 @@ class AppState {
         unitVariants[barcode]?.removeAll { $0.id == variantID }
     }
 
+    /// Makes a variant the default — swapping it into `unitConfigs` and
+    /// moving the previous default into `unitVariants` in its place (so it
+    /// remains selectable rather than disappearing). No-op if `variantID`
+    /// is already the default, or isn't a known variant for this barcode.
+    func makeDefault(_ variantID: UUID, forBarcode barcode: String) {
+        guard let currentDefault = unitConfigs[barcode], currentDefault.id != variantID,
+              var list = unitVariants[barcode],
+              let index = list.firstIndex(where: { $0.id == variantID }) else { return }
+        let newDefault = list[index]
+        list[index] = currentDefault
+        unitVariants[barcode] = list
+        unitConfigs[barcode] = newDefault
+    }
+
     /// Sets an item's remaining quantity. A value `<= 0` removes the item entirely.
     func setQuantity(_ quantity: Double, forItemID itemID: String) {
         guard let index = items.firstIndex(where: { $0.id == itemID }) else { return }
