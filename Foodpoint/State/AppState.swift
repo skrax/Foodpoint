@@ -7,12 +7,16 @@ class AppState {
     private init() {}
 
     var items: [FoodItem] = []
+    var unitConfigs: [String: ProductUnit] = [:]
 
-    func addProduct(_ product: FoodProduct) {
+    func addProduct(_ product: FoodProduct, unit: ProductUnit? = nil) {
+        let resolvedUnit = unitConfigs[product.barcode] ?? unit ?? .items
+        unitConfigs[product.barcode] = resolvedUnit
+
         if let index = items.firstIndex(where: { $0.id == product.barcode }) {
-            items[index].quantity += 1
+            items[index].quantity += resolvedUnit.quantityPerPackage
         } else {
-            items.append(FoodItem(id: product.barcode, product: product, quantity: 1))
+            items.append(FoodItem(id: product.barcode, product: product, quantity: resolvedUnit.quantityPerPackage, unit: resolvedUnit))
         }
     }
 
@@ -23,6 +27,12 @@ class AppState {
         } else {
             items[index].quantity = quantity
         }
+    }
+
+    func updateUnit(_ unit: ProductUnit, forItemID itemID: String) {
+        unitConfigs[itemID] = unit
+        guard let index = items.firstIndex(where: { $0.id == itemID }) else { return }
+        items[index].unit = unit
     }
 
     func removeItem(_ itemID: String) {

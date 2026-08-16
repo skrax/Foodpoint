@@ -30,7 +30,7 @@ struct ItemsView: View {
         NavigationLink {
             ItemDetailView(itemID: item.id)
         } label: {
-            ProductRow(product: item.product, quantity: item.quantity)
+            ProductRow(product: item.product, quantity: item.quantity, unitLabel: item.unit.label)
         }
     }
 }

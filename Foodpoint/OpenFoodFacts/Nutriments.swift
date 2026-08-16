@@ -26,4 +26,17 @@ struct Nutriments: Decodable {
         case fiber100g = "fiber_100g"
         case sodium100g = "sodium_100g"
     }
+
+    // `factor` is grams-per-unit / 100, converting these per-100g figures to per-unit.
+    func scaled(by factor: Double) -> Nutriments {
+        Nutriments(
+            energyKcal100g: energyKcal100g.map { $0 * factor },
+            proteins100g: proteins100g.map { $0 * factor },
+            carbohydrates100g: carbohydrates100g.map { $0 * factor },
+            fat100g: fat100g.map { $0 * factor },
+            sugars100g: sugars100g.map { $0 * factor },
+            fiber100g: fiber100g.map { $0 * factor },
+            sodium100g: sodium100g.map { $0 * factor }
+        )
+    }
 }

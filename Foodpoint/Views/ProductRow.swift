@@ -3,6 +3,7 @@ import SwiftUI
 struct ProductRow: View {
     let product: FoodProduct
     let quantity: Double
+    let unitLabel: String
 
     var body: some View {
         HStack {
@@ -19,7 +20,7 @@ struct ProductRow: View {
                 }
             }
             Spacer()
-            Text("×\(quantity.formatted(.number.precision(.fractionLength(0...2))))")
+            Text("\(quantity.formatted(.number.precision(.fractionLength(0...2)))) \(unitLabel)")
                 .foregroundStyle(.secondary)
         }
     }
