@@ -38,11 +38,7 @@ struct AllItemsView: View {
 
     private func row(for item: LocationItem) -> some View {
         NavigationLink {
-            ScrollView {
-                ProductDetailCard(product: item.product)
-            }
-            .navigationTitle(item.product.productName ?? "Product")
-            .navigationBarTitleDisplayMode(.inline)
+            AllItemsProductDetailView(barcode: item.id)
         } label: {
             ProductRow(product: item.product, quantity: item.quantity)
         }

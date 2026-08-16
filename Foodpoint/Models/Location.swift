@@ -18,5 +18,5 @@ struct Location: Identifiable {
 struct LocationItem: Identifiable {
     let id: String
     var product: FoodProduct
-    var quantity: Int
+    var quantity: Double
 }

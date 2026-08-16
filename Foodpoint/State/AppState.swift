@@ -26,7 +26,7 @@ class AppState {
         }
     }
 
-    func setQuantity(_ quantity: Int, forItemID itemID: String, inLocationWithID locationID: Location.ID) {
+    func setQuantity(_ quantity: Double, forItemID itemID: String, inLocationWithID locationID: Location.ID) {
         guard let locationIndex = locations.firstIndex(where: { $0.id == locationID }),
               let itemIndex = locations[locationIndex].items.firstIndex(where: { $0.id == itemID }) else { return }
         if quantity <= 0 {

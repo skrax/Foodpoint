@@ -16,12 +16,13 @@ struct LocationItemDetailView: View {
                 if let item {
                     ProductDetailCard(product: item.product)
                     Stepper(
-                        "Quantity: \(item.quantity)",
+                        "Quantity: \(item.quantity.formatted(.number.precision(.fractionLength(0...2))))",
                         value: Binding(
                             get: { item.quantity },
                             set: { appState.setQuantity($0, forItemID: itemID, inLocationWithID: locationID) }
                         ),
-                        in: 0...99
+                        in: 0...99,
+                        step: 0.5
                     )
                     .padding(.horizontal)
                 }
