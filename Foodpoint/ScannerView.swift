@@ -45,7 +45,9 @@ struct ScannerView: View {
     /// A package-size edit that doesn't match any variant already known for
     /// this barcode, awaiting the user's choice of whether to remember it.
     @State private var pendingUnit: ProductUnit?
+    @State private var pendingVariantName = ""
     @State private var isShowingVariantPrompt = false
+    @State private var isShowingVariantManager = false
 
     /// Whether the "Save" / "Scan Without Saving" pair should replace the
     /// plain "Scan Food Barcode" button.
@@ -129,16 +131,24 @@ struct ScannerView: View {
                         .ignoresSafeArea()
                 }
             }
-            .confirmationDialog(
+            .alert(
                 "New Package Size",
                 isPresented: $isShowingVariantPrompt,
                 presenting: pendingUnit
             ) { unit in
-                Button("Save as a New Variant") { confirmSave(unit, storeVariant: true) }
+                TextField("Name (e.g. Small, Large)", text: $pendingVariantName)
+                Button("Save Variant") { confirmSave(unit, storeVariant: true) }
                 Button("Just This Once") { confirmSave(unit, storeVariant: false) }
-                Button("Cancel", role: .cancel) { pendingUnit = nil }
+                Button("Cancel", role: .cancel) { pendingUnit = nil; pendingVariantName = "" }
             } message: { unit in
                 Text(variantPromptMessage(for: unit))
+            }
+            .sheet(isPresented: $isShowingVariantManager) {
+                if let product = scannedProduct {
+                    PackageVariantsView(barcode: product.barcode, mode: .select { variant in
+                        selectKnownVariant(variant)
+                    })
+                }
             }
         }
     }
@@ -198,8 +208,9 @@ struct ScannerView: View {
     /// Package-size fields for an already-configured barcode: mode and label
     /// are shown but locked, only the weight is editable, and (for
     /// count-tracked units) the resulting count is derived and displayed
-    /// read-only using the barcode's fixed grams-per-unit. A menu to jump to
-    /// any previously-remembered variant appears once more than one exists.
+    /// read-only using the barcode's fixed grams-per-unit. A "Package Sizes"
+    /// button opens `PackageVariantsView` to jump to, rename, or manage any
+    /// remembered variant.
     private func knownUnitFields(for product: FoodProduct) -> some View {
         let base = appState.unitConfigs[product.barcode]
         return VStack(spacing: 8) {
@@ -216,18 +227,11 @@ struct ScannerView: View {
             .pickerStyle(.segmented)
             .disabled(true)
 
-            let variants = knownVariants(for: product.barcode)
-            if variants.count > 1 {
-                Menu {
-                    ForEach(variants.indices, id: \.self) { index in
-                        Button(variantDescription(variants[index])) {
-                            selectKnownVariant(variants[index])
-                        }
-                    }
-                } label: {
-                    Label("Choose a saved package size", systemImage: "chevron.up.chevron.down")
-                        .font(.caption)
-                }
+            Button {
+                isShowingVariantManager = true
+            } label: {
+                Label("Package Sizes", systemImage: "chevron.up.chevron.down")
+                    .font(.caption)
             }
 
             TextField("Bag/package weight (g)", text: $packageWeightText)
@@ -255,15 +259,6 @@ struct ScannerView: View {
         guard let gramsPerUnit, gramsPerUnit > 0,
               let weight = Double(packageWeightText), weight > 0 else { return "—" }
         return (weight / gramsPerUnit).formatted(.number.precision(.fractionLength(0...2)))
-    }
-
-    /// All package sizes known for a barcode: its default config first,
-    /// then any remembered variants.
-    private func knownVariants(for barcode: String) -> [ProductUnit] {
-        var list: [ProductUnit] = []
-        if let base = appState.unitConfigs[barcode] { list.append(base) }
-        list.append(contentsOf: appState.unitVariants[barcode] ?? [])
-        return list
     }
 
     private func selectKnownVariant(_ variant: ProductUnit) {
@@ -301,7 +296,7 @@ struct ScannerView: View {
     /// A known variant whose quantity matches `candidate`, if any — saving
     /// reuses it as-is rather than the freshly-typed (and float-rounded) value.
     private func matchingKnownVariant(_ candidate: ProductUnit, for barcode: String) -> ProductUnit? {
-        knownVariants(for: barcode).first { abs($0.quantityPerPackage - candidate.quantityPerPackage) < 0.01 }
+        appState.allVariants(forBarcode: barcode).first { abs($0.quantityPerPackage - candidate.quantityPerPackage) < 0.01 }
     }
 
     private func variantPromptMessage(for unit: ProductUnit) -> String {
@@ -336,12 +331,16 @@ struct ScannerView: View {
     /// Completes a save that was held pending a variant-prompt decision.
     private func confirmSave(_ unit: ProductUnit, storeVariant: Bool) {
         guard let product = scannedProduct else { return }
+        var finalUnit = unit
         if storeVariant {
-            appState.addUnitVariant(unit, forBarcode: product.barcode)
+            let trimmed = pendingVariantName.trimmingCharacters(in: .whitespacesAndNewlines)
+            finalUnit.name = trimmed.isEmpty ? "Variant" : trimmed
+            appState.addUnitVariant(finalUnit, forBarcode: product.barcode)
         }
-        appState.addProduct(product, unit: unit)
+        appState.addProduct(product, unit: finalUnit)
         didSave = true
         pendingUnit = nil
+        pendingVariantName = ""
         scanAgain()
     }
 
@@ -364,6 +363,7 @@ struct ScannerView: View {
         isLoading = true
         didSave = false
         pendingUnit = nil
+        pendingVariantName = ""
         unitMode = .count
         packageWeightText = ""
         countLabelText = "items"

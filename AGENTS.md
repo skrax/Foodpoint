@@ -54,13 +54,19 @@ needed when adding a new file.
   `@Environment(AppState.self)`. Holds the flat `items: [FoodItem]` list,
   `unitConfigs` (each barcode's default `ProductUnit`, persisted
   independently of `items` so it survives an item being fully consumed),
-  and `unitVariants` (additional remembered package sizes per barcode —
-  see `ScannerView`'s variant-prompt flow).
+  and `unitVariants` (additional named package-size variants per barcode).
+  `allVariants(forBarcode:)`, `addUnitVariant(_:forBarcode:)`,
+  `updateVariant(_:forBarcode:)`, and `removeVariant(_:forBarcode:)` are the
+  CRUD surface for variants — go through these rather than mutating
+  `unitConfigs`/`unitVariants` directly, since the default lives in a
+  different dictionary than the rest and `removeVariant` guards against
+  deleting it.
 - `Foodpoint/Models/` — Plain data types: `FoodItem` (a saved product +
   quantity + unit), `ProductUnit`/`UnitTrackingMode` (how a product's
-  quantity is counted — by discrete count or by weight — with the
-  grams-per-unit math used for per-unit nutrition), and `FoodCategory`
-  (best-effort category/icon guess from Open Food Facts tags).
+  quantity is counted — by discrete count or by weight, with the
+  grams-per-unit math used for per-unit nutrition — plus a stable `id` and
+  user-facing `name` since a barcode can have several named variants), and
+  `FoodCategory` (best-effort category/icon guess from Open Food Facts tags).
 - `Foodpoint/Views/` — SwiftUI views. Keep view bodies declarative; push
   non-trivial logic into private methods on the view or into the model
   layer (e.g. `ProductUnit.make`) rather than free functions.

@@ -17,8 +17,11 @@ Re-scanning a barcode that's already configured shows the package-size
 fields again (not just a static summary) so a different-sized package of
 the same product can be entered directly — e.g. a 500g bag instead of the
 usual 750g, with the slice count recomputed automatically. If that size
-isn't already known for this barcode, saving asks whether to remember it
-as a selectable variant for next time, or use it just this once.
+isn't already known for this barcode, saving asks for a name (e.g.
+"Small") and whether to remember it for next time, or use it just this
+once. Named package-size variants can be reviewed, renamed, resized, added,
+and deleted from the "Package Sizes" screen, reachable from both the
+scanner and an item's detail view.
 
 This is an early solo prototype — expect rough edges and missing features.
 
@@ -60,7 +63,7 @@ Foodpoint/
   ScannerView.swift    Scan tab: barcode -> OFF lookup -> save/discard
   State/               Global app state (AppState, @Observable singleton)
   Models/               FoodItem, ProductUnit, FoodCategory
-  Views/                Items list, item detail, shared row/card components
+  Views/                Items list, item detail, package-size management, shared row/card components
   Scanners/             Barcode scanning (AVFoundation-backed UIViewRepresentable)
   OpenFoodFacts/         Networking + models for the Open Food Facts API
 ```

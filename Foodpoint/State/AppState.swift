@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 
 /// App-wide state: the flat list of saved food items and the remembered
@@ -14,11 +15,12 @@ class AppState {
     /// product's configured label/package size survives it being fully
     /// consumed and removed, and is reused automatically on re-scan.
     var unitConfigs: [String: ProductUnit] = [:]
-    /// Additional remembered package-size variants per barcode (e.g. a 500g
-    /// bag alongside the default 750g one). Same `label`/`gramsPerUnit` as
-    /// the barcode's `unitConfigs` entry — only `quantityPerPackage` (and,
-    /// for count-mode units, the implied package weight) differs between
-    /// variants, since the unit's tracking mode/label can't change per scan.
+    /// Additional remembered package-size variants per barcode (e.g. a "Small"
+    /// 500g bag alongside the "Default" 750g one). Same `label`/`gramsPerUnit`
+    /// as the barcode's `unitConfigs` entry — only `name` and
+    /// `quantityPerPackage` (and, for count-mode units, the implied package
+    /// weight) differ between variants, since a unit's tracking mode/label
+    /// can't change per scan.
     var unitVariants: [String: [ProductUnit]] = [:]
 
     /// Saves a scanned product, or adds another package of it if already saved.
@@ -36,10 +38,42 @@ class AppState {
         }
     }
 
-    /// Remembers an alternate package-size variant for a barcode, so it can
-    /// be picked again on a future scan instead of retyped from scratch.
+    /// Every package-size variant known for a barcode: its default config
+    /// first, then any remembered alternates.
+    func allVariants(forBarcode barcode: String) -> [ProductUnit] {
+        var list: [ProductUnit] = []
+        if let base = unitConfigs[barcode] { list.append(base) }
+        list.append(contentsOf: unitVariants[barcode] ?? [])
+        return list
+    }
+
+    /// Remembers a new package-size variant for a barcode (carries its own
+    /// `name`), so it can be picked again on a future scan instead of
+    /// retyped from scratch.
     func addUnitVariant(_ unit: ProductUnit, forBarcode barcode: String) {
         unitVariants[barcode, default: []].append(unit)
+    }
+
+    /// Updates an existing variant (matched by `id`) in place — the default
+    /// slot or the variants list, whichever holds it — and refreshes any
+    /// currently saved item whose `unit` is that same variant.
+    func updateVariant(_ variant: ProductUnit, forBarcode barcode: String) {
+        if unitConfigs[barcode]?.id == variant.id {
+            unitConfigs[barcode] = variant
+        } else if var list = unitVariants[barcode], let index = list.firstIndex(where: { $0.id == variant.id }) {
+            list[index] = variant
+            unitVariants[barcode] = list
+        }
+        if let index = items.firstIndex(where: { $0.id == barcode }), items[index].unit.id == variant.id {
+            items[index].unit = variant
+        }
+    }
+
+    /// Removes a variant from `unitVariants`. The default (`unitConfigs`)
+    /// entry is never removable this way — the UI hides that option for it.
+    func removeVariant(_ variantID: UUID, forBarcode barcode: String) {
+        guard unitConfigs[barcode]?.id != variantID else { return }
+        unitVariants[barcode]?.removeAll { $0.id == variantID }
     }
 
     /// Sets an item's remaining quantity. A value `<= 0` removes the item entirely.
@@ -50,15 +84,6 @@ class AppState {
         } else {
             items[index].quantity = quantity
         }
-    }
-
-    /// Updates a barcode's default unit config (label/quantity-per-package/
-    /// grams-per-unit), both for future re-scans and on the currently saved
-    /// item, if any. Does not affect any remembered `unitVariants`.
-    func updateUnit(_ unit: ProductUnit, forItemID itemID: String) {
-        unitConfigs[itemID] = unit
-        guard let index = items.firstIndex(where: { $0.id == itemID }) else { return }
-        items[index].unit = unit
     }
 
     func removeItem(_ itemID: String) {

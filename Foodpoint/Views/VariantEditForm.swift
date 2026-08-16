@@ -1,0 +1,95 @@
+import SwiftUI
+
+/// Add or rename/resize a single package-size variant. Tracking mode and
+/// label are locked to match the barcode's other variants (inferred from
+/// `existing`, or from `templateMode`/`templateLabel` when adding the very
+/// first one) — only the name, weight, and (for count-tracked units) count
+/// can change.
+struct VariantEditForm: View {
+    let barcode: String
+    let existing: ProductUnit?
+    var templateMode: UnitTrackingMode?
+    var templateLabel: String?
+
+    @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var name = ""
+    @State private var weightText = ""
+    @State private var countText = ""
+
+    private var mode: UnitTrackingMode {
+        existing?.trackingMode ?? templateMode ?? .count
+    }
+
+    private var label: String {
+        existing?.label ?? templateLabel ?? "items"
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Name (e.g. Small, Large)", text: $name)
+                }
+                Section("Package size") {
+                    Picker("Tracking", selection: .constant(mode)) {
+                        ForEach(UnitTrackingMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(true)
+
+                    TextField("Weight (g)", text: $weightText)
+                        .keyboardType(.decimalPad)
+
+                    if mode == .count {
+                        TextField("Count (\(label))", text: $countText)
+                            .keyboardType(.decimalPad)
+                    }
+                }
+            }
+            .navigationTitle(existing == nil ? "New Package Size" : "Edit Package Size")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }
+                }
+            }
+            .onAppear(perform: populate)
+        }
+    }
+
+    private func populate() {
+        guard let existing else { return }
+        name = existing.name
+        weightText = existing.packageWeight.map {
+            $0.formatted(.number.precision(.fractionLength(0...2)))
+        } ?? ""
+        countText = existing.trackingMode == .count
+            ? existing.quantityPerPackage.formatted(.number.precision(.fractionLength(0...2)))
+            : ""
+    }
+
+    private func save() {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let unit = ProductUnit.make(
+            id: existing?.id ?? UUID(),
+            name: trimmedName.isEmpty ? "Variant" : trimmedName,
+            mode: mode,
+            packageWeight: Double(weightText),
+            countLabel: label,
+            countPerPackage: Double(countText)
+        )
+
+        if existing != nil {
+            appState.updateVariant(unit, forBarcode: barcode)
+        } else {
+            appState.addUnitVariant(unit, forBarcode: barcode)
+        }
+        dismiss()
+    }
+}

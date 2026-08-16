@@ -14,9 +14,16 @@ enum UnitTrackingMode: String, CaseIterable, Identifiable {
 /// much one count-unit weighs (used to derive nutrition-per-unit from
 /// Open Food Facts' per-100g figures via `Nutriments.scaled(by:)`).
 ///
-/// Configured once per barcode and stored in `AppState.unitConfigs`, so it
-/// survives even if the item is fully consumed and removed from `items`.
-struct ProductUnit {
+/// A barcode can have several `ProductUnit`s — one default plus any number
+/// of named variants (e.g. "Default"/750g, "Small"/500g) — all stored under
+/// `AppState.unitConfigs`/`unitVariants`, keyed by barcode, so they survive
+/// even if the item is fully consumed and removed from `items`. `id` gives
+/// each variant a stable identity for editing/selection independent of its
+/// (possibly-edited) `name` or values.
+struct ProductUnit: Identifiable {
+    let id: UUID
+    /// User-facing name for this package-size variant, e.g. "Default", "Small", "Large".
+    var name: String
     /// User-facing unit name, e.g. "bars", "slices", or "g" for weight-tracked items.
     var label: String
     /// How much `label` one scanned package adds — used by `AppState.addProduct`
@@ -25,6 +32,14 @@ struct ProductUnit {
     /// Grams represented by one `label` unit. `nil` when unknown (nutrition
     /// then falls back to Open Food Facts' raw per-100g figures).
     var gramsPerUnit: Double?
+
+    init(id: UUID = UUID(), name: String = "Default", label: String, quantityPerPackage: Double, gramsPerUnit: Double?) {
+        self.id = id
+        self.name = name
+        self.label = label
+        self.quantityPerPackage = quantityPerPackage
+        self.gramsPerUnit = gramsPerUnit
+    }
 
     /// Default unit for a product that hasn't been configured yet.
     static let items = ProductUnit(label: "items", quantityPerPackage: 1, gramsPerUnit: nil)
@@ -51,11 +66,18 @@ struct ProductUnit {
     /// In `.count` mode, `gramsPerUnit` is derived as `packageWeight / countPerPackage`
     /// (e.g. a 750g bag with 15 slices → 50g/slice) rather than requiring the
     /// user to compute it themselves.
-    static func make(mode: UnitTrackingMode, packageWeight: Double?, countLabel: String, countPerPackage: Double?) -> ProductUnit {
+    static func make(
+        id: UUID = UUID(),
+        name: String = "Default",
+        mode: UnitTrackingMode,
+        packageWeight: Double?,
+        countLabel: String,
+        countPerPackage: Double?
+    ) -> ProductUnit {
         switch mode {
         case .weight:
             let weight = packageWeight ?? 1
-            return ProductUnit(label: "g", quantityPerPackage: weight > 0 ? weight : 1, gramsPerUnit: 1)
+            return ProductUnit(id: id, name: name, label: "g", quantityPerPackage: weight > 0 ? weight : 1, gramsPerUnit: 1)
         case .count:
             let label = countLabel.trimmingCharacters(in: .whitespacesAndNewlines)
             let count = countPerPackage ?? 1
@@ -64,6 +86,8 @@ struct ProductUnit {
                 return weight / count
             }()
             return ProductUnit(
+                id: id,
+                name: name,
                 label: label.isEmpty ? "items" : label,
                 quantityPerPackage: count > 0 ? count : 1,
                 gramsPerUnit: gramsPerUnit
