@@ -350,6 +350,86 @@ public final class MealStore {
         return NutritionCompleteness(total: total, consideredCount: ingredients.count, missingCount: missing)
     }
 
+    // MARK: - Day timeline queries (MK-5, meals-feature-design.md §10)
+
+    /// Every entry — `.planned` and `.eaten` alike — occurring on `date`,
+    /// the pure query behind the Meals tab's day timeline. Status/visual
+    /// distinction is the caller's job (`Foodpoint/Views/DayTimelineView.swift`);
+    /// this just narrows `entries` to one calendar day, the same
+    /// day-matching `dayTotal(for:)` already uses.
+    public func entries(on date: Date, calendar: Calendar = .current) -> [MealEntry] {
+        entries.filter { calendar.isDate($0.date, inSameDayAs: date) }
+    }
+
+    /// `entries(on:)` grouped by `MealSlot`, in `MealSlot.allCases`' fixed
+    /// display order (breakfast, lunch, dinner, snack) — meals-feature-design.md
+    /// §10: "entries group by slot." Every slot is included even when empty
+    /// so the timeline can render a stable, ordered set of sections; the
+    /// caller decides whether to hide the empty ones.
+    public func entriesGroupedBySlot(on date: Date, calendar: Calendar = .current) -> [(slot: MealSlot, entries: [MealEntry])] {
+        let dayEntries = entries(on: date, calendar: calendar)
+        return MealSlot.allCases.map { slot in (slot, dayEntries.filter { $0.slot == slot }) }
+    }
+
+    // MARK: - Soft insufficient-stock signal (MK-5, meals-feature-design.md §5/§12 #5)
+
+    /// One ingredient on a planned entry that needs more than the pantry
+    /// currently holds — the data behind the design doc's soft "needs 6
+    /// eggs, you have 4" signal. Carries both the needed and the currently
+    /// available amount so the caller can render exactly that phrasing.
+    public struct StockShortfall: Identifiable, Equatable {
+        public var id: UUID { ingredientID }
+        public var ingredientID: UUID
+        public var productName: String
+        public var needed: Double
+        public var available: Double
+        public var unitLabel: String
+
+        public init(ingredientID: UUID, productName: String, needed: Double, available: Double, unitLabel: String) {
+            self.ingredientID = ingredientID
+            self.productName = productName
+            self.needed = needed
+            self.available = available
+            self.unitLabel = unitLabel
+        }
+    }
+
+    /// Ingredients in `ingredients` (typically a planned `MealEntry`'s own
+    /// list) whose `usesFromPantry` amount exceeds what `availableQuantity`
+    /// reports for that barcode — the pure comparison behind the planned-entry
+    /// insufficient-stock signal. Ingredients with the toggle off are
+    /// excluded, since they never draw from pantry stock regardless of
+    /// what's on the shelf (meals-feature-design.md §4.4).
+    ///
+    /// This is a **read-only comparison against current stock, computed
+    /// fresh every call** — nothing here reserves, holds, or otherwise
+    /// mutates any quantity (meals-feature-design.md §12 #5's "no
+    /// reservation" decision). It deliberately takes availability as a
+    /// closure rather than reading `PantryKit` directly, since `MealKit` has
+    /// no dependency on `PantryKit` (package-architecture.md §1) — this
+    /// keeps the check pure, network-free, and unit-testable in complete
+    /// isolation. `FoodpointKit.AppState` (the one place both stores are
+    /// visible, §3.5) is the real caller, supplying a closure that reads
+    /// `pantry.items`. `availableQuantity` returning `nil` (barcode not in
+    /// the pantry at all) is treated as `0` available.
+    public static func stockShortfalls(
+        for ingredients: [LoggedIngredient],
+        availableQuantity: (String) -> Double?
+    ) -> [StockShortfall] {
+        ingredients.compactMap { ingredient in
+            guard ingredient.usesFromPantry else { return nil }
+            let available = availableQuantity(ingredient.barcode) ?? 0
+            guard ingredient.amount > available else { return nil }
+            return StockShortfall(
+                ingredientID: ingredient.id,
+                productName: ingredient.productName ?? ingredient.barcode,
+                needed: ingredient.amount,
+                available: available,
+                unitLabel: ingredient.unitLabel
+            )
+        }
+    }
+
     // MARK: - Ingredient history (no network call)
 
     /// Distinct ingredients this store has ever logged or planned, one row

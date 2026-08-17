@@ -134,4 +134,26 @@ extension AppState {
             .filter { $0.usesFromPantry && (consumedAmounts[$0.id] ?? $0.amount) < $0.amount }
             .map { $0.productName ?? $0.barcode }
     }
+
+    /// The soft "needs 6 eggs, you have 4" signal (meals-feature-design.md
+    /// §5, §12 #5) for a still-`.planned` entry — the day timeline's
+    /// per-entry insufficient-stock note (MK-5). Wires `MealStore`'s pure
+    /// `stockShortfalls(for:availableQuantity:)` comparison to `pantry.items`,
+    /// since this is the one place both stores are visible
+    /// (package-architecture.md §3.5) and `MealKit` itself can't read
+    /// `PantryKit` directly.
+    ///
+    /// Computed fresh from current `pantry` quantities every call — it never
+    /// reserves, holds, or otherwise mutates any quantity, matching §12 #5's
+    /// "no reservation" decision: a plan can sit for weeks and this will
+    /// simply reflect however the pantry looks *right now*, each time it's
+    /// asked. Empty for an unknown `entryID` or one that's already `.eaten`
+    /// (its pantry effect, if any, already happened — nothing left to warn
+    /// about).
+    public func stockShortfalls(for entryID: UUID) -> [MealStore.StockShortfall] {
+        guard let entry = meals.entries.first(where: { $0.id == entryID }), entry.status == .planned else { return [] }
+        return MealStore.stockShortfalls(for: entry.ingredients) { barcode in
+            pantry.items.first(where: { $0.id == barcode })?.quantity
+        }
+    }
 }

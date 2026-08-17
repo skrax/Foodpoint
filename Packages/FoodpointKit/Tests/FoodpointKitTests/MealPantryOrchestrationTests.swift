@@ -234,4 +234,69 @@ struct MealPantryOrchestrationTests {
         #expect(state.undoMealEaten(planned.id) == nil)
         #expect(state.pantry.items[0].quantity == 20)
     }
+
+    // MARK: - Planning has zero effect until tick-off (MK-5, meals-feature-design.md §5)
+
+    @Test("planning a meal for a future date never touches pantry quantities")
+    func planningNeverTouchesPantry() {
+        let state = AppState()
+        state.pantry.addProduct(product(), unit: unit(quantityPerPackage: 20))
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
+
+        state.meals.plan(name: "Future Meal", date: tomorrow, slot: .dinner, ingredients: [ingredient(amount: 4, usesFromPantry: true)])
+
+        #expect(state.pantry.items[0].quantity == 20, "planning must have zero pantry effect until ticked off")
+    }
+
+    @Test("planning a meal for a future date never affects today's eaten totals")
+    func planningNeverAffectsTodaysEatenTotal() {
+        let state = AppState()
+        state.pantry.addProduct(product(), unit: unit(quantityPerPackage: 20))
+        let today = Date()
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
+
+        state.meals.plan(name: "Future Meal", date: tomorrow, slot: .dinner, ingredients: [ingredient(amount: 4, usesFromPantry: true)])
+
+        #expect(state.meals.dayTotal(for: today).eaten.consideredCount == 0, "a plan for a different day must not leak into today's eaten total")
+    }
+
+    // MARK: - stockShortfalls: soft signal, computed live, never reserving
+
+    @Test("stockShortfalls reports a planned entry's ingredient that exceeds current pantry stock")
+    func stockShortfallsReportsPlannedShortfall() {
+        let state = AppState()
+        state.pantry.addProduct(product(), unit: unit(quantityPerPackage: 3))
+        let planned = state.meals.plan(name: "Future Meal", date: Date(), slot: .dinner, ingredients: [ingredient(amount: 10, usesFromPantry: true)])
+
+        let shortfalls = state.stockShortfalls(for: planned.id)
+
+        #expect(shortfalls.count == 1)
+        #expect(shortfalls[0].needed == 10)
+        #expect(shortfalls[0].available == 3)
+        #expect(state.pantry.items[0].quantity == 3, "checking the signal must not reserve or otherwise touch pantry stock")
+    }
+
+    @Test("stockShortfalls is empty once the plan is fully covered by pantry stock")
+    func stockShortfallsEmptyWhenCovered() {
+        let state = AppState()
+        state.pantry.addProduct(product(), unit: unit(quantityPerPackage: 20))
+        let planned = state.meals.plan(name: "Future Meal", date: Date(), slot: .dinner, ingredients: [ingredient(amount: 4, usesFromPantry: true)])
+
+        #expect(state.stockShortfalls(for: planned.id).isEmpty)
+    }
+
+    @Test("stockShortfalls is empty for an entry already marked eaten — its pantry effect already happened")
+    func stockShortfallsEmptyOnceEaten() {
+        let state = AppState()
+        state.pantry.addProduct(product(), unit: unit(quantityPerPackage: 3))
+        let entryID = planAndMarkEaten(state, ingredients: [ingredient(amount: 10, usesFromPantry: true)])
+
+        #expect(state.stockShortfalls(for: entryID).isEmpty)
+    }
+
+    @Test("stockShortfalls is empty for an unknown entry id")
+    func stockShortfallsEmptyForUnknownID() {
+        let state = AppState()
+        #expect(state.stockShortfalls(for: UUID()).isEmpty)
+    }
 }
