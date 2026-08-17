@@ -90,6 +90,16 @@ dependency" below).
     (text search); a search result is re-resolved by its barcode via
     `fetchFoodData(for:)` rather than reusing the already-fetched product,
     so there's exactly one code path past that point, not two to maintain.
+    `ScannerView` is also presentable as a sheet from elsewhere (currently
+    `ItemsView`'s "•••" menu) via its `entryPoint: EntryPoint?` parameter
+    (`.scan`/`.search`/`nil`) — non-`nil` auto-opens the matching flow on
+    appear (skipping the "No Product Scanned" landing screen, since the
+    caller already expressed intent by picking a menu item) and shows a
+    Cancel button; `nil` is today's Scan-tab-root behavior, unchanged. If
+    you add another entry point into this flow, extend `EntryPoint` rather
+    than duplicating `ScannerView`'s acquire/confirm/configure/save logic
+    elsewhere — that duplication is exactly what this parameter exists to
+    avoid.
   - `Views/` — SwiftUI views. Keep bodies declarative; push non-trivial
     logic into `PantryKit` (a new/extended `PantryStore` method, reached
     via `appState.pantry`) or a `FoodFoundation` computed property, rather

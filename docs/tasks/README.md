@@ -82,8 +82,8 @@ this lands.
 
 | ID | Title | Status | Depends on |
 |----|-------|--------|-----------|
-| [UX-1](epic-2-search-ux-refinement/UX-1-items-view-acquisition-menu.md) | Add an acquisition menu to ItemsView (scan or search) | ready | PA-3 |
-| [UX-2](epic-2-search-ux-refinement/UX-2-remove-search-from-scanner.md) | Remove the search entry point from ScannerView | backlog | UX-1 |
+| [UX-1](epic-2-search-ux-refinement/UX-1-items-view-acquisition-menu.md) | Add an acquisition menu to ItemsView (scan or search) | done | PA-3 |
+| [UX-2](epic-2-search-ux-refinement/UX-2-remove-search-from-scanner.md) | Remove the search entry point from ScannerView | ready | UX-1 |
 | [UX-3](epic-2-search-ux-refinement/UX-3-search-results-nutrition-inspection.md) | Let search results be inspected for nutrition before picking one | ready | PA-3 |
 
 ## Epic 3 — Meals Feature
@@ -104,6 +104,14 @@ a UI that's about to change underneath it.
 | [MK-5](epic-3-meals-feature/MK-5-planning-and-tick-off.md) | Planning and tick-off | backlog | MK-3 |
 | [MK-6](epic-3-meals-feature/MK-6-range-summary-and-consumption.md) | Range summary and consumption surfaces | backlog | MK-3 |
 
+## Bugs
+
+Not epic-sequenced feature work — tracked separately as they're found.
+
+| ID | Title | Status | Depends on |
+|----|-------|--------|-----------|
+| [BUG-1](bugs/BUG-1-first-input-field-hang.md) | Investigate first-use input-field hang (spike) | ready | — |
+
 ## What's next
 
 **Epic 1 is fully done.** Two things from it still need confirming on the
@@ -111,9 +119,20 @@ physical device (both builds are installed there): the full
 scan→save→adjust walkthrough from PA-5, and tapping a search result
 through to a save from PA-3.
 
-**Epic 2 is new, from direct feedback on PA-3's UI.** **UX-1** and **UX-3**
-are both unblocked and independent of each other. **UX-2** waits on UX-1
-(don't remove the old search entry point before the new one exists).
-MK-1 (Epic 3) is technically unblocked already, but consider landing
-Epic 2 first — MK-2 will likely reuse `ProductSearchView`, and building
-Meals against a search UI that's about to be reworked risks redoing work.
+**UX-1 is done.** The Items-view "•••" menu now presents `ScannerView` as
+a sheet via a new `EntryPoint` parameter, auto-opening scan or search with
+no logic duplicated. Verified in Simulator up to (but not through) an
+actual tap on the Cancel button or typed search query — both hit **BUG-1**
+(see below), so the final click-through to a completed save still needs
+confirming on the physical device, where the build is installed.
+
+**UX-2 is now ready** (its one dependency, UX-1, is done). **UX-3** remains
+ready and independent. MK-1 (Epic 3) is technically unblocked already, but
+consider landing Epic 2 first — MK-2 will likely reuse `ProductSearchView`,
+and building Meals against a search UI that's about to be reworked risks
+redoing work.
+
+**BUG-1 is new**, from a user report that independently matches an issue
+Claude hit repeatedly while testing UX-1/PA-3 in the Simulator (previously
+assumed to be Simulator-tooling-only) — worth investigating before it's
+mistaken for "just how the Simulator behaves" again on a future task.

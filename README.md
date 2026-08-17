@@ -18,14 +18,17 @@ logic on top of it (what's saved, how it's counted, its nutrition); and
 SwiftUI app is a thin driver on top of all three: views, the camera
 scanner, and not much else.
 
-"Search by Name" (next to "Scan Food Barcode") finds candidates by text
-query against Open Food Facts' [search-a-licious](https://search.openfoodfacts.org)
-API — the v2/v3 product API doesn't support free-text search, so this is a
-distinct request against a different endpoint, not a variant of the
-by-barcode lookup. Picking a result feeds the exact same save flow a
-barcode scan would; this covers produce and other unlabeled groceries, not
-things Open Food Facts has no listing for at all (a home-cooked dish,
-still out of scope).
+Both ways to add a product — scanning and searching — are reachable from
+the Items tab's "•••" menu without leaving the list, alongside the Scan
+tab's own buttons for the same two actions. "Search by Name" finds
+candidates by text query against Open Food Facts'
+[search-a-licious](https://search.openfoodfacts.org) API — the v2/v3
+product API doesn't support free-text search, so this is a distinct
+request against a different endpoint, not a variant of the by-barcode
+lookup. Picking a result feeds the exact same save flow a barcode scan
+would; this covers produce and other unlabeled groceries, not things Open
+Food Facts has no listing for at all (a home-cooked dish, still out of
+scope).
 
 Each product's quantity can be tracked either as a **count** (e.g. 12
 "bars", 15 "slices") or by **weight** (grams) — configured once per
@@ -110,10 +113,16 @@ to test.)
 Foodpoint/
   FoodpointApp.swift   App entry point
   ContentView.swift    Root tab bar (Items, Scan)
-  ScannerView.swift    Scan tab: barcode -> ProductLookup.fetch -> save/discard;
-                       also hosts "Search by Name" -> ProductSearchView
+  ScannerView.swift    Acquire -> confirm -> configure-unit -> save flow:
+                       barcode -> ProductLookup.fetch -> save/discard, plus
+                       "Search by Name" -> ProductSearchView. Both the Scan
+                       tab's root and, via `entryPoint`, a sheet presentable
+                       from elsewhere (ItemsView's "•••" menu) without
+                       duplicating this logic
   Views/               SwiftUI views only — no business logic; read/write
                         pantry state via `appState.pantry.*`
+    ItemsView.swift     Items tab; "•••" menu offers Scan Barcode/Search by
+                        Name, both presenting ScannerView as a sheet
     ProductSearchView.swift  Text search sheet; picking a result re-resolves
                               it by barcode through the same path a scan uses
   Scanners/             Barcode scanning (AVFoundation-backed UIViewRepresentable)

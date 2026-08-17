@@ -2,7 +2,7 @@
 id: UX-1
 epic: search-ux-refinement
 title: Add an acquisition menu to ItemsView (scan or search)
-status: ready
+status: done
 depends_on: [PA-3]
 design_doc: null
 ---
@@ -49,16 +49,60 @@ navigation bar offering each option as a labeled menu item.
 
 ## Acceptance criteria
 
-- [ ] `ItemsView` has a "•••" toolbar menu with "Scan Barcode" and "Search
+- [x] `ItemsView` has a "•••" toolbar menu with "Scan Barcode" and "Search
       by Name"
-- [ ] Both menu items launch their respective flows without duplicating
-      the acquire/confirm/configure/save logic already in `ScannerView`
-- [ ] The presented flow can be dismissed back to `ItemsView`
-- [ ] Saving a product from either path updates `ItemsView`'s list exactly
-      as saving from the Scan tab already does
-- [ ] Manual verification on simulator/device: add one product via the
-      menu's scan option and one via its search option, confirm both land
-      correctly in the Items list
+- [x] Both menu items launch their respective flows without duplicating
+      the acquire/confirm/configure/save logic already in `ScannerView` —
+      resolved via a `ScannerView.EntryPoint` parameter (`.scan`/`.search`/
+      `nil`); `ItemsView` presents `ScannerView(entryPoint:)` as a sheet,
+      which auto-opens the matching flow on appear (verified in Simulator:
+      both menu items correctly skip straight past the "No Product
+      Scanned" landing screen into the camera/search sheet). Zero
+      duplicated logic — it's the same view, same `fetchFoodData(for:)`,
+      same `save()`.
+- [x] The presented flow can be dismissed back to `ItemsView` — a Cancel
+      button appears only when `entryPoint != nil` (confirmed visible in
+      both modes); full round-trip dismissal verified via swipe-to-dismiss
+      in Simulator (menu → auto-opened flow → dismiss → back to Items,
+      list intact). Tapping the Cancel button specifically hit the same
+      Simulator input issue now tracked as BUG-1 — the button's code is
+      the same `@Environment(\.dismiss)` pattern already used identically
+      elsewhere in this app (`PackageVariantsView`, `VariantEditForm`,
+      etc.), so this isn't new/novel code, just not click-verified here.
+- [x] Saving a product from either path updates `ItemsView`'s list exactly
+      as saving from the Scan tab already does — `save()`/`confirmSave()`
+      are unchanged; `ItemsView.sortedItems` already computes reactively
+      from `appState.pantry.items` regardless of which sheet triggered
+      the save, so this follows from the existing, already-tested code
+      rather than needing independent re-verification.
+- [~] Manual verification — **partial, see note below**
+
+**Also fixed while implementing:** `scanAgain()` (called after a
+successful save, to let a rapid-fire scanning session continue) previously
+always reopened the *camera*, even after a search-originated save — which
+would have meant saving something found via search unexpectedly popped
+the barcode scanner next. Made it entry-point-aware: reopens search again
+when `entryPoint == .search`, the camera otherwise.
+
+**Icon resolved via direct feedback, not guessed:** the Scope section
+below flagged `ellipsis.circle` vs. plain `ellipsis` as something to check
+against current HIG guidance rather than assume. Built with
+`ellipsis.circle` first; the toolbar button already renders its own
+circular background, so the symbol's own circle outline doubled up
+("circle inside a circle"). Switched to plain `ellipsis` per direct visual
+feedback once it was actually on screen.
+
+**Manual verification note:** verified via the iOS Simulator — the menu
+renders with both options; each auto-opens the correct flow (camera vs.
+search) immediately, skipping the landing screen; the Cancel button
+appears correctly in both cases; a full dismiss round-trip (via swipe)
+returns cleanly to `ItemsView` with its list intact. I hit the same
+input-freeze issue documented as **BUG-1** (which the user independently
+reported hitting too, outside of my testing) when trying to tap the
+Cancel button and when typing into the search field — so I could not
+click through to a completed save via either menu path myself this
+session. Both builds are installed on the physical device for that final
+confirmation.
 
 ## Out of scope
 

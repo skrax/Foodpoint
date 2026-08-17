@@ -18,6 +18,14 @@ import FoodpointKit
 /// search result is re-resolved by its barcode rather than reusing the
 /// already-fetched product, so there's exactly one downstream code path.
 ///
+/// Also presentable as a sheet from `ItemsView`'s "•••" acquisition menu
+/// (UX-1) via `entryPoint`, rather than only as the Scan tab's root — that
+/// reuses this entire flow with no duplication. `entryPoint` is `nil` for
+/// the tab (today's behavior, unchanged); non-`nil` when presented from
+/// elsewhere, which immediately opens the matching sheet on appear and
+/// adds a Cancel button, since there's no persistent "No Product Scanned"
+/// landing screen to act as the entry affordance in that context.
+///
 /// For a barcode that's already configured, the package-size fields are
 /// still shown (pre-filled from the saved config) rather than a static
 /// summary, so a different-sized package of the same product (e.g. a 500g
@@ -28,13 +36,25 @@ import FoodpointKit
 /// already known for this barcode, saving asks whether to remember it as a
 /// selectable variant for next time, or use it just this once.
 struct ScannerView: View {
+    /// How this view was entered when presented as a sheet rather than
+    /// shown as the Scan tab's root. See the type-level doc comment.
+    enum EntryPoint: Equatable {
+        case scan, search
+    }
+
     private enum UnitField: Hashable {
         case packageWeight, countLabel, countPerPackage
     }
 
+    var entryPoint: EntryPoint? = nil
+
     @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
     @State private var isShowingScanner = false
     @State private var isShowingSearch = false
+    /// Guards the `entryPoint` auto-trigger so it only fires once per
+    /// presentation, not on every `onAppear` (e.g. after a child sheet dismisses).
+    @State private var hasAutoTriggeredEntryPoint = false
     @State private var scannedProduct: Product?
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -142,11 +162,17 @@ struct ScannerView: View {
             }
             .navigationTitle("Food Tracker")
             .toolbar {
+                if entryPoint != nil {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
+                    }
+                }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
                     Button("Done") { focusedUnitField = nil }
                 }
             }
+            .onAppear(perform: triggerEntryPointIfNeeded)
             .sheet(isPresented: $isShowingScanner) {
                 ZStack {
                     FastFoodBarcodeScanner { barcode in
@@ -449,9 +475,34 @@ struct ScannerView: View {
         scanAgain()
     }
 
+    /// Reopens whichever acquisition method is active — the camera by
+    /// default, or search again if this presentation was entered via
+    /// search (`entryPoint == .search`), so completing a search-originated
+    /// save doesn't unexpectedly pop the barcode camera instead.
     private func scanAgain() {
         errorMessage = nil
-        isShowingScanner = true
+        if entryPoint == .search {
+            isShowingSearch = true
+        } else {
+            isShowingScanner = true
+        }
+    }
+
+    /// Immediately opens the matching sheet when presented via `entryPoint`
+    /// (from `ItemsView`'s acquisition menu) rather than as the Scan tab's
+    /// root, so there's no extra tap on a "No Product Scanned" landing
+    /// screen the user didn't need to see — they already chose scan or
+    /// search from the menu. No-op for the tab (`entryPoint == nil`) and
+    /// only fires once per presentation.
+    private func triggerEntryPointIfNeeded() {
+        guard let entryPoint, !hasAutoTriggeredEntryPoint else { return }
+        hasAutoTriggeredEntryPoint = true
+        switch entryPoint {
+        case .scan:
+            isShowingScanner = true
+        case .search:
+            isShowingSearch = true
+        }
     }
 
     /// Builds a `ProductUnit` from the new-product config form's current input.
