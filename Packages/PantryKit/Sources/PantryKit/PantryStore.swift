@@ -251,4 +251,66 @@ public class PantryStore {
     public func removeItem(_ itemID: String) {
         items.removeAll { $0.id == itemID }
     }
+
+    // MARK: - Meal-driven consumption (FoodpointKit orchestration, MK-3)
+    //
+    // `consume`/`restore` exist so `FoodpointKit.AppState` (the one place
+    // allowed to know both `PantryKit` and `MealKit` exist, per
+    // package-architecture.md §3.5) can apply a logged meal's pantry side
+    // effects without duplicating any of `PantryStore`'s own mutation logic.
+    // Neither method knows anything about `MealKit` — they take plain
+    // `FoodFoundation` types, keeping this package's zero-`MealKit`-
+    // dependency rule intact.
+
+    /// Decrements the item matching `barcode` by `amount`, clamping to zero
+    /// rather than going negative (meals-feature-design.md §4.4) — routed
+    /// through `setQuantity`'s existing "quantity `<= 0` deletes the item"
+    /// behavior rather than duplicating that logic here.
+    ///
+    /// Returns the amount actually consumed, which can be less than
+    /// `amount` requested if there wasn't enough stock — the caller compares
+    /// the two to detect the "insufficient stock, clamped" case and surface
+    /// a soft inline note (meals-feature-design.md §4.4), rather than this
+    /// method throwing or blocking. Returns `0` (no mutation) if `barcode`
+    /// has no matching item, or `amount` isn't positive.
+    @discardableResult
+    public func consume(barcode: String, amount: Double) -> Double {
+        guard amount > 0, let index = items.firstIndex(where: { $0.id == barcode }) else { return 0 }
+        let available = items[index].quantity
+        let consumedAmount = min(amount, available)
+        setQuantity(available - consumedAmount, forItemID: barcode)
+        return consumedAmount
+    }
+
+    /// Restores `amount` of `product` to the pantry — adding to an existing
+    /// item if one still exists (matching `addProduct`'s "increment if
+    /// present, else create" pattern, so this never duplicates an item that
+    /// wasn't fully depleted), or fully re-creating one if `consume` had
+    /// deleted it at zero (package-architecture.md §4.3's undo edge case:
+    /// undoing a meal that fully depleted a pantry item must recreate it,
+    /// not bump a quantity that no longer has anything to bump).
+    ///
+    /// `unit` is used only when creating a brand-new item, and only as a
+    /// fallback: this barcode's own remembered `unitConfigs` entry is
+    /// preferred when one exists, since it's the authoritative unit for this
+    /// product (surviving even a full depletion) rather than whatever the
+    /// caller happened to reconstruct — see
+    /// `MealKit.LoggedIngredient.impliedUnit`, the caller's usual source for
+    /// `unit`. Nutrition is likewise taken from `nutritionConfigs` when
+    /// available, else `product.nutrition`, mirroring `addProduct`. A
+    /// non-positive `amount` is a no-op.
+    public func restore(product: Product, unit: ProductUnit, amount: Double) {
+        guard amount > 0 else { return }
+        if let index = items.firstIndex(where: { $0.id == product.id }) {
+            items[index].quantity += amount
+        } else {
+            let resolvedUnit = unitConfigs[product.id] ?? unit
+            var productToStore = product
+            productToStore.nutrition = nutritionConfigs[product.id]?.nutrition ?? product.nutrition
+            items.append(FoodItem(id: product.id, product: productToStore, quantity: amount, unit: resolvedUnit))
+            if unitConfigs[product.id] == nil {
+                unitConfigs[product.id] = resolvedUnit
+            }
+        }
+    }
 }

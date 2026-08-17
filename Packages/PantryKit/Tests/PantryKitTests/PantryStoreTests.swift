@@ -264,4 +264,124 @@ struct PantryStoreTests {
         let update = state.pendingNutritionUpdate(from: nutrition(), forBarcode: barcode)
         #expect(update?.nutrition.energyKcal100g == 250)
     }
+
+    // MARK: - consume (MK-3, meal-driven pantry decrement)
+
+    @Test("consume decrements a known item's quantity and returns the full amount taken")
+    func consumeDecrementsKnownItem() {
+        let state = PantryStore()
+        state.addProduct(product(), unit: unit(quantityPerPackage: 10))
+
+        let consumed = state.consume(barcode: barcode, amount: 4)
+
+        #expect(consumed == 4)
+        #expect(state.items[0].quantity == 6)
+    }
+
+    @Test("consume clamps to zero rather than going negative when stock is insufficient")
+    func consumeClampsToZeroOnInsufficientStock() {
+        let state = PantryStore()
+        state.addProduct(product(), unit: unit(quantityPerPackage: 3))
+
+        let consumed = state.consume(barcode: barcode, amount: 10)
+
+        #expect(consumed == 3, "reports only the amount actually taken, not what was requested")
+        #expect(state.items.isEmpty, "clamping to zero routes through setQuantity's existing delete-at-zero behavior")
+    }
+
+    @Test("consuming the exact remaining amount removes the item, same as setQuantity(0, ...)")
+    func consumeExactRemainingRemovesItem() {
+        let state = PantryStore()
+        state.addProduct(product(), unit: unit(quantityPerPackage: 5))
+
+        let consumed = state.consume(barcode: barcode, amount: 5)
+
+        #expect(consumed == 5)
+        #expect(state.items.isEmpty)
+    }
+
+    @Test("consume on an unknown barcode is a no-op returning zero")
+    func consumeUnknownBarcodeReturnsZero() {
+        let state = PantryStore()
+        #expect(state.consume(barcode: "ghost", amount: 5) == 0)
+    }
+
+    @Test("consume with a non-positive amount is a no-op returning zero")
+    func consumeNonPositiveAmountReturnsZero() {
+        let state = PantryStore()
+        state.addProduct(product(), unit: unit(quantityPerPackage: 5))
+        #expect(state.consume(barcode: barcode, amount: 0) == 0)
+        #expect(state.consume(barcode: barcode, amount: -1) == 0)
+        #expect(state.items[0].quantity == 5, "neither call mutated the item")
+    }
+
+    // MARK: - restore (MK-3, undo's pantry side effect)
+
+    @Test("restore adds back to an item that still exists rather than duplicating it")
+    func restoreAddsToExistingItem() {
+        let state = PantryStore()
+        state.addProduct(product(), unit: unit(quantityPerPackage: 10))
+        state.consume(barcode: barcode, amount: 4)
+
+        state.restore(product: product(), unit: unit(), amount: 4)
+
+        #expect(state.items.count == 1)
+        #expect(state.items[0].quantity == 10)
+    }
+
+    @Test("restore re-creates an item that was fully depleted (and thus deleted)")
+    func restoreRecreatesFullyDepletedItem() {
+        let state = PantryStore()
+        state.addProduct(product(), unit: unit(quantityPerPackage: 5))
+        state.consume(barcode: barcode, amount: 5)
+        #expect(state.items.isEmpty, "sanity check: fully depleted")
+
+        state.restore(product: product(), unit: unit(), amount: 5)
+
+        #expect(state.items.count == 1)
+        #expect(state.items[0].quantity == 5)
+        #expect(state.items[0].unit.label == "bars", "re-created using the barcode's remembered unit config")
+    }
+
+    @Test("restore prefers the barcode's remembered unitConfigs entry over the unit it was passed")
+    func restoreUsesRememberedUnitConfigsOverPassedUnit() {
+        let state = PantryStore()
+        state.addProduct(product(), unit: unit(quantityPerPackage: 5)) // establishes "bars" as the remembered default
+        state.consume(barcode: barcode, amount: 5)
+
+        let differentUnit = ProductUnit(label: "slices", quantityPerPackage: 1, gramsPerUnit: 20)
+        state.restore(product: product(), unit: differentUnit, amount: 5)
+
+        #expect(state.items[0].unit.label == "bars", "unitConfigs is the authoritative unit, not whatever the caller reconstructed")
+    }
+
+    @Test("restore falls back to the passed unit when there's no remembered unitConfigs entry at all")
+    func restoreFallsBackToPassedUnitWhenNoConfigRemembered() {
+        let state = PantryStore()
+        let freshUnit = ProductUnit(label: "items", quantityPerPackage: 1, gramsPerUnit: nil)
+
+        state.restore(product: product(), unit: freshUnit, amount: 2)
+
+        #expect(state.items.count == 1)
+        #expect(state.items[0].unit.label == "items")
+        #expect(state.unitConfigs[barcode]?.label == "items", "also establishes it as the remembered default, matching addProduct")
+    }
+
+    @Test("restore with a non-positive amount is a no-op")
+    func restoreNonPositiveAmountIsNoOp() {
+        let state = PantryStore()
+        state.restore(product: product(), unit: unit(), amount: 0)
+        #expect(state.items.isEmpty)
+    }
+
+    @Test("restore uses the barcode's remembered nutrition default when re-creating an item, not whatever nutrition the caller passed")
+    func restoreUsesRememberedNutritionDefault() {
+        let state = PantryStore()
+        state.addProduct(product(nutrition: nutrition(calories: 250)), unit: unit(quantityPerPackage: 5))
+        state.consume(barcode: barcode, amount: 5)
+
+        state.restore(product: product(nutrition: nutrition(calories: 999)), unit: unit(), amount: 5)
+
+        #expect(state.items[0].product.nutrition?.energyKcal100g == 250, "nutritionConfigs default wins over the passed-in product's nutrition")
+    }
 }

@@ -4,11 +4,13 @@ import FoodpointKit
 /// Builds a meal from ingredient rows, one per acquired product, plus a
 /// running nutrition footer with an explicit completeness signal
 /// (meals-feature-design.md §6/§8.2). This is the reusable composition
-/// editor MK-2 delivers; MK-3 wires its `onDone` callback into a real
-/// "Save"/"Log" action that creates a `.eaten` `MealEntry` and triggers
-/// pantry orchestration (package-architecture.md §3.5) — this view itself
-/// never touches `appState.meals.entries` or `appState.pantry`'s
-/// quantities, only reads from them for the acquisition sources below.
+/// editor MK-2 delivers; `MealsView` (MK-3) wires its `onDone` callback into
+/// a real "Save"/"Log" action — `appState.meals.plan` followed immediately
+/// by `appState.markMealEaten(_:)` — that creates the entry and triggers
+/// pantry orchestration (package-architecture.md §3.5). This view itself
+/// still never touches `appState.meals.entries` or `appState.pantry`'s
+/// quantities directly, only reads from them for the acquisition sources
+/// below — the actual persisting/orchestrating stays the caller's job.
 /// MK-4/MK-5 are expected to reuse this same view for template creation and
 /// planning, which is why `onDone` hands back the composed ingredients
 /// rather than this view persisting anything itself.
@@ -32,8 +34,8 @@ import FoodpointKit
 struct MealCompositionEditorView: View {
     /// Called with the composed ingredient list when "Done" is tapped —
     /// empty if nothing was added. Not called on "Cancel". Defaults to a
-    /// no-op so this view is usable stand-alone before a real caller (MK-3)
-    /// exists.
+    /// no-op so this view is still usable stand-alone (e.g. previews) even
+    /// though `MealsView` (MK-3) now supplies a real handler.
     var onDone: ([LoggedIngredient]) -> Void = { _ in }
 
     @Environment(AppState.self) private var appState
