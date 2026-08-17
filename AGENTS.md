@@ -16,14 +16,16 @@ item list is the current, intentional design, not a placeholder.)
 All business logic lives in local, UI-agnostic Swift packages (no
 `import SwiftUI`, no view code anywhere in them): `FoodFoundation` holds
 the shared domain types and product lookup; `PantryKit` holds the pantry's
-state and CRUD logic on top of it; `MealKit` holds the (in-progress, not
-yet wired into any view) meals feature's state and logic on top of it too
-— a fully independent peer of `PantryKit`, sharing nothing with it but
-`FoodFoundation` (each of the three with its own unit test suite);
-`FoodpointKit` is a thin composition root exposing all of this as a single
-`AppState`, the object the app actually injects into its environment. The
-`Foodpoint` app target is a thin driver: SwiftUI views, the AVFoundation
-camera wrapper, and glue code that reads/writes `appState.pantry.*`.
+state and CRUD logic on top of it; `MealKit` holds the meals feature's
+state and logic on top of it too — a fully independent peer of `PantryKit`,
+sharing nothing with it but `FoodFoundation` (each of the three with its
+own unit test suite); `FoodpointKit` is a thin composition root exposing
+all of this as a single `AppState`, plus the one place cross-domain
+orchestration between `PantryKit` and `MealKit` lives (logging a meal
+decrementing pantry stock, and undo restoring it — MK-3; its own,
+smaller `FoodpointKitTests`). The `Foodpoint` app target is a thin driver:
+SwiftUI views, the AVFoundation camera wrapper, and glue code that
+reads/writes `appState.pantry.*`/`appState.meals.*`.
 **New logic — state mutation, derived values, parsing, anything that isn't
 literally rendering UI — belongs in a package, not in a view.** This split
 exists specifically so that logic can be unit tested without a simulator;
@@ -50,9 +52,8 @@ business-logic changes:
 cd Packages/FoodFoundation && swift test
 cd Packages/PantryKit && swift test
 cd Packages/MealKit && swift test
+cd Packages/FoodpointKit && swift test
 ```
-
-(`FoodpointKit` has no test target right now — see its bullet below.)
 
 Run the relevant package's tests after any change to it, and add/update
 tests for new or changed behavior — see "Testing conventions" below. There
@@ -90,8 +91,9 @@ dependency" below).
   - `ScannerView.swift`, `ContentView.swift`, `FoodpointApp.swift` — the
     latter injects `AppState.shared` into the environment. `ContentView`'s
     root `TabView` has three tabs: Items, Scan, and Meals — the last is
-    `Views/MealsView.swift` (MK-2), today a thin placeholder (see its own
-    bullet below) that exists purely to make the meal composition editor
+    `Views/MealsView.swift` (MK-2/MK-3), today a thin list-plus-composer
+    placeholder (see its own bullet below) that exists purely to make the
+    meal composition editor — and now the real logging/undo loop (MK-3) —
     reachable before the real Meals tab (day timeline, templates) lands in
     MK-4/MK-5. `ScannerView` is
     scan-only (UX-2): its single acquisition path is the camera
@@ -156,21 +158,30 @@ dependency" below).
       rather than re-fetching. Deliberately **does not** persist anything
       itself (MK-2's Scope explicitly excludes "actually saving/logging
       the meal") — it hands the composed `[LoggedIngredient]` to an
-      `onDone` closure and lets the caller decide; MK-3 is expected to
-      replace that caller with a real "Save"/"Log" action plus pantry
-      orchestration. Reused as-is for template creation (MK-4) and
-      planning (MK-5) is the intent behind that closure-based contract.
+      `onDone` closure and lets the caller decide; `MealsView` (MK-3) is
+      the real caller now, wiring `onDone` into
+      `appState.meals.plan`/`appState.markMealEaten(_:)`. Reused as-is for
+      template creation (MK-4) and planning (MK-5) is the intent behind
+      that closure-based contract.
     - `MealIngredientPantryPickerView.swift`, `MealIngredientHistoryPickerView.swift`,
       `MealIngredientUnitSetupView.swift` (MK-2) — the four sources'
       picker sheets described above.
-    - `MealsView.swift` (MK-2) — the Meals tab's current placeholder body:
-      a "+" button opens `MealCompositionEditorView`, and its `onDone`
-      calls `appState.meals.logEaten(...)` directly so composed meals are
-      real, listed entries (and so `MealIngredientHistoryPickerView` has
-      real data to show). **Deliberately provisional**: unlike MK-3's
-      eventual orchestration, this call site never touches
-      `appState.pantry`'s quantities even for "Use from pantry"
-      ingredients — MK-3 replaces it with the real one.
+    - `MealsView.swift` (MK-2/MK-3) — the Meals tab's current placeholder
+      body: a "+" button opens `MealCompositionEditorView`; its `onDone`
+      plans the composed ingredients (`appState.meals.plan`) then
+      immediately calls `appState.markMealEaten(_:)` to transition the
+      entry to `.eaten` and apply its pantry orchestration (MK-3,
+      package-architecture.md §3.5) — the two-step path because
+      `markMealEaten` only operates on a `.planned` entry, matching
+      `MealStore.markEaten`'s own contract. If
+      `appState.insufficientStockIngredients(for:)` reports any ingredient
+      came up short against pantry stock, this shows a non-blocking
+      "Insufficient Stock" alert (meals-feature-design.md §4.4's soft
+      note) — logging itself already succeeded either way. Each `.eaten`
+      row also has a swipe-to-undo action calling
+      `appState.undoMealEaten(_:)`, which restores pantry stock exactly
+      (see the `FoodpointKit` bullet below) and moves the entry back to
+      `.planned`.
   - `Scanners/` — Barcode scanning. Wraps `AVFoundation`
     (`AVCaptureSession`) directly via `UIViewRepresentable`; not a
     SwiftUI-native camera API, and specifically not VisionKit's
@@ -189,10 +200,12 @@ dependency" below).
     container the app actually uses, via the `AppState.shared` singleton
     and `@Environment(AppState.self)`; `init()` is public rather than
     private specifically so tests can construct isolated instances instead
-    of sharing global state across test cases. Holds no logic of its own —
-    just `public let pantry = PantryStore()` and `public let meals =
-    MealStore()`, as independent peers (neither knows the other exists).
-    Deliberately **no forwarding properties**: call sites go through
+    of sharing global state across test cases. Holds `public let pantry =
+    PantryStore()` and `public let meals = MealStore()` as independent
+    peers (neither knows the other exists), plus a private
+    `consumedAmounts: [UUID: Double]` (keyed by `LoggedIngredient.id`) used
+    only by the orchestration extension below. Deliberately **no
+    forwarding properties**: call sites go through
     `appState.pantry.*`/`appState.meals.*`, not `appState.*`, since
     re-declaring `PantryStore`'s/`MealStore`'s whole surface here would
     just be boilerplate duplicating an API one property away (see
@@ -202,14 +215,40 @@ dependency" below).
     use `Product`, `PantryStore`, `FoodItem`, `MealStore`, `MealTemplate`,
     etc. directly without importing those packages itself — keep those
     re-exports if you touch this file's imports.
-  - **No test target right now.** Composing `pantry: PantryStore`/
-    `meals: MealStore` is pure wiring with no logic of its own to test;
-    `FoodpointKitTests` returns once cross-domain orchestration lands here
-    (e.g. a future meal-logged event decrementing pantry stock — see
-    package-architecture.md §3.5, §4.2, tracked as MK-3). An empty declared
-    test target makes `swift test` hard-error (`swift build` only warns),
-    so the target is removed rather than left empty — re-add it in
-    `Package.swift` when there's something to put in it.
+  - The same file's `extension AppState` (MK-3, package-architecture.md
+    §3.5) is this package's whole reason for existing beyond wiring — the
+    one place allowed to know both `PantryKit` and `MealKit` exist:
+    - `markMealEaten(_ entryID:) -> MealEntry?` — calls `meals.markEaten`,
+      then for each ingredient with `usesFromPantry` on, calls
+      `pantry.consume(barcode:amount:)`. `consume` clamps to zero rather
+      than going negative if stock is short (meals-feature-design.md
+      §4.4) instead of blocking; the amount actually taken (which can be
+      less than what was logged) is remembered in `consumedAmounts`.
+      No-op, including no pantry mutation, if `entryID` isn't currently
+      `.planned` — matches `MealStore.markEaten`'s own contract.
+    - `undoMealEaten(_ entryID:) -> MealEntry?` — calls `meals.undo`, then
+      restores pantry stock for each `usesFromPantry` ingredient by
+      exactly the amount recorded in `consumedAmounts` (not naively the
+      full logged amount, which would over-restore after a clamp), via
+      `pantry.restore(product:unit:amount:)`. `restore` re-creates the
+      `FoodItem` if `consume` had fully depleted (and thus deleted) it —
+      package-architecture.md §4.3's edge case — using the ingredient's
+      own snapshotted `productName`/`productBrand`/`imageURL` plus its
+      `impliedUnit`/`impliedNutritionPer100g` to reconstruct a `Product`/
+      `ProductUnit`, since `LoggedIngredient` never stores those directly.
+    - `insufficientStockIngredients(for entryID:) -> [String]` — a pure
+      read of `consumedAmounts`, for the UI to call right after
+      `markMealEaten(_:)` and surface meals-feature-design.md §4.4's soft
+      inline note without threading `consume`'s return value through the
+      call site by hand.
+  - `Tests/FoodpointKitTests/MealPantryOrchestrationTests.swift` — Swift
+    Testing, covers only this orchestration (package-architecture.md
+    §4.2's "much smaller `FoodpointKitTests`"), not `PantryStore`'s/
+    `MealStore`'s own logic (that's `PantryKitTests`'/`MealKitTests`' job)
+    beyond what's needed to prove the two are wired together correctly —
+    the cases from meals-feature-design.md §14's "FoodpointKit
+    (orchestration only)" list, plus the insufficient-stock/clamp and
+    §4.3 recreate-on-undo cases.
 
 - `Packages/PantryKit/` (local package, product `PantryKit`) — the
   pantry's state and CRUD logic, no `import SwiftUI` anywhere in it.
@@ -244,6 +283,19 @@ dependency" below).
       `refreshNutritionVariant` (apply the user's choice from that
       prompt). See `ScannerView`'s `knownProductNutritionStatus` and
       `NutritionUpdateView` for how the app drives these.
+    - Meal-driven consumption (MK-3, called only from `FoodpointKit`'s
+      orchestration extension — see its bullet above — never from
+      `MealKit`, which has no dependency on this package):
+      `consume(barcode:amount:) -> Double` decrements an item, clamping to
+      zero via the existing `setQuantity` zero-deletes behavior rather
+      than duplicating it, and returns the amount actually taken (less
+      than requested if stock was short, letting the caller detect and
+      surface that); `restore(product:unit:amount:)` adds back to an
+      existing item or fully re-creates one that was deleted at zero
+      (package-architecture.md §4.3's undo edge case), preferring the
+      barcode's own remembered `unitConfigs`/`nutritionConfigs` entries
+      over whatever the caller passed, the same way `addProduct` treats
+      its own first-save-wins defaults.
   - `Sources/PantryKit/Models/FoodItem.swift` — a saved product + quantity
     + unit. The one model type that lives here rather than in
     `FoodFoundation`, since it's pantry-state shaped (references a live
@@ -293,9 +345,9 @@ dependency" below).
 
 - `Packages/MealKit/` (local package, product `MealKit`) — the meals
   feature's state and logic, no `import SwiftUI` anywhere in it — now
-  UI-visible via the app's Meals tab (MK-2's composition editor), though
-  still without a real "Save"/logging action (that's MK-3). Depends on
-  `FoodFoundation` **only** — no dependency on
+  UI-visible via the app's Meals tab (MK-2's composition editor, wired to a
+  real "Save"/logging action plus pantry orchestration by MK-3, in
+  `FoodpointKit`). Depends on `FoodFoundation` **only** — no dependency on
   `PantryKit`, checked by grep in this package's own acceptance criteria
   (MK-1); see package-architecture.md §1/§3.4 for the "treat `PantryKit`
   and `MealKit` like separate applications" rule this exists to enforce:
@@ -341,11 +393,13 @@ dependency" below).
       directly from already-resolved ingredients.
     - `markEaten(_:)`/`undo(_:)` — transition `.planned` <-> `.eaten` and
       return the finalized/reverted `MealEntry`, **never touching
-      inventory themselves**. The caller (`FoodpointKit`, once MK-3 lands)
-      iterates `entry.ingredients` where `usesFromPantry` is `true` to
-      decrement/restore the right pantry items — see
-      package-architecture.md §3.5's example. `removeEntry` follows the
-      same "hand back what changed" contract, returning the deleted entry.
+      inventory themselves**. The caller (`FoodpointKit.AppState.markMealEaten`/
+      `.undoMealEaten`, MK-3) iterates `entry.ingredients` where
+      `usesFromPantry` is `true` to decrement/restore the right pantry
+      items — see package-architecture.md §3.5's example and the
+      `FoodpointKit` bullet above. `removeEntry` follows the same "hand
+      back what changed" contract, returning the deleted entry, but has no
+      `FoodpointKit`-level caller yet (still MK-4/MK-5 territory).
     - `dayTotal(for:)`/`rangeSummary(from:to:)` — nutrition aggregation.
       `.eaten` and `.planned` totals are always kept separate, never
       summed (meals-feature-design.md §8.1), and every total is a

@@ -18,8 +18,11 @@ logged/planned entries, nutrition aggregation and consumption stats — as a
 fully independent peer of `PantryKit`, sharing nothing with it but
 `FoodFoundation`; and `Packages/FoodpointKit` is a thin
 composition root tying all of that together as `AppState`, the single
-object the app injects into its environment. The SwiftUI app is a thin
-driver on top of all four: views, the camera scanner, and not much else.
+object the app injects into its environment — plus the one place that
+knows both `PantryKit` and `MealKit` exist, which is where logging a meal
+decrements pantry stock (and undo restores it) lives. The SwiftUI app is a
+thin driver on top of all four: views, the camera scanner, and not much
+else.
 
 Both ways to add a product — scanning and searching — are reachable from
 the Items tab's "•••" menu without leaving the list; the Scan tab itself is
@@ -68,17 +71,29 @@ isn't asked about again next scan. Manage nutrition variants from the
 "Nutrition" screen, reachable the same way as "Package Sizes".
 
 The Meals tab is a thin placeholder around the meal-composition editor —
-the real day timeline/templates screen is still to come, but the editor
-itself works: build a meal from ingredient rows, each with an amount and a
-"Use from pantry" toggle (on by default), and a running nutrition footer
-that flags when data is incomplete rather than silently under-counting.
-Ingredients come from four sources — the pantry, previously-logged history
-(no network call), scanning, or searching by name (both reusing the same
-camera/search flows as the Items tab) — and a barcode `MealKit` has never
-used before gets a quick, ingredient-scoped weight/count setup prompt,
-independent of the pantry's own configuration for that product even if one
-exists. Logging a meal here doesn't yet decrement pantry stock — that
-orchestration, and a real day timeline, are still to come.
+the real day timeline/templates screen is still to come, but the core
+logging loop works end to end: build a meal from ingredient rows, each
+with an amount and a "Use from pantry" toggle (on by default), and a
+running nutrition footer that flags when data is incomplete rather than
+silently under-counting. Ingredients come from four sources — the pantry,
+previously-logged history (no network call), scanning, or searching by
+name (both reusing the same camera/search flows as the Items tab) — and a
+barcode `MealKit` has never used before gets a quick, ingredient-scoped
+weight/count setup prompt, independent of the pantry's own configuration
+for that product even if one exists.
+
+Tapping "Done" logs the meal and decrements pantry stock for every
+ingredient with "Use from pantry" on — ingredients with the toggle off
+(take-out, a friend's leftovers) are logged for nutrition/history without
+touching inventory at all. If the pantry doesn't have enough of something,
+the decrement clamps to zero instead of going negative or blocking the
+log, with a soft "Insufficient Stock" note naming what came up short.
+Swiping an eaten meal offers "Undo," which restores pantry stock by
+exactly what was actually taken (not naively the full logged amount, if a
+clamp happened) — including re-creating a pantry item that eating the last
+of it had fully removed. Editing a product's nutrition later never rewrites
+an already-eaten meal's numbers: pantry state is live, meal history is a
+frozen snapshot.
 
 This is an early solo prototype — expect rough edges and missing features.
 
@@ -120,11 +135,12 @@ touching Xcode or a simulator:
 cd Packages/FoodFoundation && swift test
 cd Packages/PantryKit && swift test
 cd Packages/MealKit && swift test
+cd Packages/FoodpointKit && swift test
 ```
 
-(`FoodpointKit` has no test target right now — it's pure composition/wiring
-with no logic of its own yet; that returns once it has real orchestration
-to test.)
+(`FoodpointKit`'s test target covers only its cross-domain orchestration —
+`AppState.markMealEaten`/`.undoMealEaten` — not `PantryStore`'s/
+`MealStore`'s own logic, which is `PantryKitTests`'/`MealKitTests`' job.)
 
 ## Project layout
 
@@ -148,10 +164,16 @@ Foodpoint/
                         barcode to ScannerView via a second, sequenced sheet)
     ProductSearchView.swift  Text search sheet; picking a result re-resolves
                               it by barcode through the same path a scan uses
-    MealsView.swift     Meals tab; today a thin placeholder — a "+" button
-                        opens MealCompositionEditorView, and finishing logs
-                        the meal directly via appState.meals.logEaten
-                        (no pantry orchestration yet)
+    MealsView.swift     Meals tab; today a thin list-plus-composer
+                        placeholder — a "+" button opens
+                        MealCompositionEditorView, and "Done" plans the
+                        meal then immediately marks it eaten
+                        (appState.markMealEaten), decrementing pantry
+                        stock for "Use from pantry" ingredients and
+                        surfacing a soft note if stock ran short. Each
+                        eaten row has a swipe-to-undo action
+                        (appState.undoMealEaten) that restores pantry
+                        stock exactly
     MealCompositionEditorView.swift  Ingredient rows + running nutrition
                         footer with a completeness signal; four ingredient
                         sources (pantry/history/scan/search) behind an
@@ -165,16 +187,24 @@ Packages/
   FoodpointKit/          Local Swift package: the composition root
     Sources/FoodpointKit/
       AppState.swift      `AppState.shared` holds `pantry: PantryStore` and
-                           `meals: MealStore` as independent peers; no logic
-                           of its own beyond composing them (cross-domain
-                           orchestration between the two, e.g. logging a
-                           meal decrementing pantry stock, is a future
-                           addition here, not yet implemented)
+                           `meals: MealStore` as independent peers, plus an
+                           `extension AppState` with the only cross-domain
+                           orchestration in the app: markMealEaten/
+                           undoMealEaten (decrement/restore pantry stock for
+                           "Use from pantry" ingredients, clamping to zero
+                           and re-creating a fully-depleted item on undo)
+                           and insufficientStockIngredients (for the
+                           soft-note UI)
+    Tests/FoodpointKitTests/  Swift Testing unit tests for the orchestration
+                              above only
 
   PantryKit/              Local Swift package: pantry state and CRUD, UI-agnostic
     Sources/PantryKit/
       PantryStore.swift    Items, package-size/nutrition variants, and all
-                            their CRUD (what used to be on AppState)
+                            their CRUD (what used to be on AppState), plus
+                            consume/restore — the meal-driven pantry
+                            decrement/undo primitives called only from
+                            FoodpointKit's orchestration
       Models/FoodItem.swift  A saved product + quantity + unit
     Tests/PantryKitTests/  Swift Testing unit tests
 
