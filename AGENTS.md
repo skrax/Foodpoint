@@ -88,7 +88,12 @@ dependency" below).
 - `Foodpoint/` (app target) — SwiftUI views and camera glue only, nothing
   else:
   - `ScannerView.swift`, `ContentView.swift`, `FoodpointApp.swift` — the
-    latter injects `AppState.shared` into the environment. `ScannerView` is
+    latter injects `AppState.shared` into the environment. `ContentView`'s
+    root `TabView` has three tabs: Items, Scan, and Meals — the last is
+    `Views/MealsView.swift` (MK-2), today a thin placeholder (see its own
+    bullet below) that exists purely to make the meal composition editor
+    reachable before the real Meals tab (day timeline, templates) lands in
+    MK-4/MK-5. `ScannerView` is
     scan-only (UX-2): its single acquisition path is the camera
     (`FastFoodBarcodeScanner`) driving `fetchFoodData(for:)`. It has no
     search UI of its own — `Views/ProductSearchView.swift` (text search)
@@ -120,7 +125,52 @@ dependency" below).
   - `Views/` — SwiftUI views. Keep bodies declarative; push non-trivial
     logic into `PantryKit` (a new/extended `PantryStore` method, reached
     via `appState.pantry`) or a `FoodFoundation` computed property, rather
-    than into the view.
+    than into the view. This applies just as much to `MealKit`-backed
+    views: push new logic into a `MealStore` method (reached via
+    `appState.meals`), not into `@State`/view-local functions.
+    - `MealCompositionEditorView.swift` (MK-2) — the meal-composition
+      editor: ingredient rows (amount field via `String.localizedDouble`,
+      "Use from pantry" toggle defaulting on) plus a running nutrition
+      footer with a completeness signal (`MealStore.completeness(for:)`,
+      now `public` specifically so this view can call it live, ahead of
+      any `MealEntry` existing). Four ingredient sources behind an
+      "Add Ingredient" bottom-bar menu, per meals-feature-design.md §6.1:
+      **from the pantry** (`MealIngredientPantryPickerView`, reading
+      `appState.pantry.items` directly — the one source `MealKit` itself
+      can't provide), **from history**
+      (`MealIngredientHistoryPickerView`, reading
+      `appState.meals.recentlyUsedIngredients()`, no network call),
+      **scan** (`FastFoodBarcodeScanner`, reused verbatim from
+      `ScannerView`), and **search** (`ProductSearchView`, reused
+      verbatim) — both of the latter two funnel into one
+      `beginAcquisition(barcode:)` function that calls
+      `ProductLookup.fetch(barcode:)` then either appends a row directly
+      (this barcode has a `appState.meals.lastKnownUnit(forBarcode:)`
+      already) or presents `MealIngredientUnitSetupView`'s minimal
+      weight/count + label prompt first (a barcode `MealKit` has never
+      used before) — scoped to that one ingredient, never written back to
+      `PantryKit` even if the same barcode is already configured there.
+      Editing a row's amount recomputes grams/nutrition locally via
+      `MealStore.makeIngredient` + `LoggedIngredient.impliedUnit`/
+      `.impliedNutritionPer100g` (see the `MealStore.swift` bullet below)
+      rather than re-fetching. Deliberately **does not** persist anything
+      itself (MK-2's Scope explicitly excludes "actually saving/logging
+      the meal") — it hands the composed `[LoggedIngredient]` to an
+      `onDone` closure and lets the caller decide; MK-3 is expected to
+      replace that caller with a real "Save"/"Log" action plus pantry
+      orchestration. Reused as-is for template creation (MK-4) and
+      planning (MK-5) is the intent behind that closure-based contract.
+    - `MealIngredientPantryPickerView.swift`, `MealIngredientHistoryPickerView.swift`,
+      `MealIngredientUnitSetupView.swift` (MK-2) — the four sources'
+      picker sheets described above.
+    - `MealsView.swift` (MK-2) — the Meals tab's current placeholder body:
+      a "+" button opens `MealCompositionEditorView`, and its `onDone`
+      calls `appState.meals.logEaten(...)` directly so composed meals are
+      real, listed entries (and so `MealIngredientHistoryPickerView` has
+      real data to show). **Deliberately provisional**: unlike MK-3's
+      eventual orchestration, this call site never touches
+      `appState.pantry`'s quantities even for "Use from pantry"
+      ingredients — MK-3 replaces it with the real one.
   - `Scanners/` — Barcode scanning. Wraps `AVFoundation`
     (`AVCaptureSession`) directly via `UIViewRepresentable`; not a
     SwiftUI-native camera API, and specifically not VisionKit's
@@ -241,9 +291,11 @@ dependency" below).
   - `Tests/FoodFoundationTests/` — Swift Testing, same conventions as
     `PantryKitTests`.
 
-- `Packages/MealKit/` (local package, product `MealKit`) — the (in-progress,
-  not yet UI-visible) meals feature's state and logic, no `import SwiftUI`
-  anywhere in it. Depends on `FoodFoundation` **only** — no dependency on
+- `Packages/MealKit/` (local package, product `MealKit`) — the meals
+  feature's state and logic, no `import SwiftUI` anywhere in it — now
+  UI-visible via the app's Meals tab (MK-2's composition editor), though
+  still without a real "Save"/logging action (that's MK-3). Depends on
+  `FoodFoundation` **only** — no dependency on
   `PantryKit`, checked by grep in this package's own acceptance criteria
   (MK-1); see package-architecture.md §1/§3.4 for the "treat `PantryKit`
   and `MealKit` like separate applications" rule this exists to enforce:
@@ -252,11 +304,22 @@ dependency" below).
     `templates: [MealTemplate]` and `entries: [MealEntry]`, plus template
     CRUD (`addTemplate`/`updateTemplate`/`removeTemplate`) and entry
     CRUD/lifecycle:
+    - `makeIngredient(barcode:productName:productBrand:imageURL:nutritionPer100g:amount:unit:usesFromPantry:)` —
+      `public static`, pure, and network-free: the actual
+      `grams = amount × unit.gramsPerUnit` + nutrition-scaling arithmetic
+      shared by `resolveIngredient` and `instantiate` below. Extracted
+      specifically so `Foodpoint/Views/MealCompositionEditorView.swift`
+      (MK-2) can rebuild a `LoggedIngredient` for a locally-edited amount
+      without re-fetching — pair with `LoggedIngredient.impliedUnit`/
+      `.impliedNutritionPer100g` (see the Models bullet below) to
+      round-trip an already-resolved ingredient through this function
+      again for a new amount.
     - `resolveIngredient`/`resolveTemplateIngredient` — resolve a barcode
       and snapshot everything a `LoggedIngredient`/`TemplateIngredient`
-      needs (name, brand, image, and, for the logged variant, nutrition)
-      immediately, one network call, right now — never deferred, so
-      browsing an already-added ingredient later needs no further call.
+      needs (name, brand, image, and, for the logged variant, nutrition
+      via `makeIngredient`) immediately, one network call, right now —
+      never deferred, so browsing an already-added ingredient later needs
+      no further call.
     - `instantiate(_:)` — turns a `MealTemplate`'s ingredients into
       `LoggedIngredient`s by **re-resolving nutrition fresh** via
       `ProductLookup.fetch` every single time, never reusing a previous
@@ -264,6 +327,16 @@ dependency" below).
       network cost is accepted, same tradeoff re-scanning a barcode
       already has elsewhere in this app. `logTemplate`/`planTemplate` wrap
       this plus `logEaten`/`plan` for one-tap logging.
+    - `recentlyUsedIngredients()` — every distinct barcode this store has
+      ever logged, one `LoggedIngredient` each, most-recently-used entry
+      first; reads straight off already-snapshotted fields, so — unlike
+      scan/search — it's the "from history" ingredient source (§6.1 #2)
+      and never makes a network call. `lastKnownUnit(forBarcode:)` is the
+      companion lookup for the *unit*, checked by the composition editor
+      before prompting its first-time unit setup — `nil` means this
+      barcode has never been used as a `MealKit` ingredient before,
+      deliberately never falling back to `PantryKit`'s own unit config for
+      the same barcode even if one exists.
     - `logEaten`/`plan` — create an entry as `.eaten` or `.planned`
       directly from already-resolved ingredients.
     - `markEaten(_:)`/`undo(_:)` — transition `.planned` <-> `.eaten` and
@@ -281,6 +354,10 @@ dependency" below).
       (§8.2, mirrors `Nutrition.isEffectivelyEmpty`'s honesty principle).
       `rangeSummary` includes every calendar day in the range, even ones
       with zero entries, so `averageEatenPerDay` is a true per-day average.
+      Both build on `completeness(for:)`, `public static` (not just
+      `private`) specifically so the composition editor's live running
+      footer (MK-2) can compute the same signal over whatever's currently
+      in the editor, ahead of any `MealEntry` existing.
     - `consumptionStats(barcode:from:to:)`/`mostConsumed(from:to:)` — how
       often/how much a product was eaten; counts every `.eaten` ingredient
       row regardless of `usesFromPantry` ("did I eat this" != "did it come
@@ -308,7 +385,16 @@ dependency" below).
     identity fields as `TemplateIngredient` plus `unitLabel`,
     `gramsResolved`, and `nutritionSnapshot: Nutrition?` — all frozen at
     logging time, never re-touched afterward: **pantry state is live, meal
-    history is frozen**, meals-feature-design.md §4.3), `MealSlot`
+    history is frozen**, meals-feature-design.md §4.3). `LoggedIngredient`
+    also has two computed properties, `impliedUnit`/
+    `impliedNutritionPer100g`, that reconstruct (respectively) the
+    `ProductUnit` and per-100g `Nutrition` this ingredient was logged
+    with, by inverting the `gramsResolved`/`amount` ratio and the
+    `scaled(by:)` call `makeIngredient` applied — what lets the "from
+    history" ingredient source (§6.1 #2, MK-2) let the amount be edited
+    without a network call, since `LoggedIngredient` itself doesn't store
+    a full `ProductUnit`/raw per-100g `Nutrition`, only the frozen,
+    already-scaled results. `MealSlot`
     (`.breakfast`/`.lunch`/`.dinner`/`.snack`, fixed — not user-configurable
     — with a `current(at:calendar:)` time-of-day default), `MealStatus`
     (`.planned`/`.eaten`), and `NutritionCompleteness`/`DayNutritionTotal`/
@@ -322,6 +408,13 @@ dependency" below).
   - `Tests/MealKitTests/` — Swift Testing, same conventions as
     `PantryKitTests`/`FoodFoundationTests`; see `TestSupport.swift`'s
     `StubProductResolver`/`Fixture` for this package's fixture pattern.
+    `IngredientCompositionTests.swift` (MK-2) covers the pure,
+    network-free logic added for the composition editor —
+    `makeIngredient`, the public `completeness(for:)`,
+    `recentlyUsedIngredients()`, `lastKnownUnit(forBarcode:)`, and
+    `LoggedIngredient.impliedUnit`/`.impliedNutritionPer100g` — all
+    without a `StubProductResolver`, since none of it makes a resolver
+    call.
 
 - `Packages/OpenFoodFactsKit/` (local package, product `OpenFoodFactsKit`) —
   all networking and wire-format types for Open Food Facts' APIs:

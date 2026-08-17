@@ -13,10 +13,10 @@ unit test suite: `Packages/FoodFoundation` holds the shared domain types
 (`Product`, `Nutrition`, `ProductUnit`, `NutritionVariant`, `FoodCategory`)
 and product lookup; `Packages/PantryKit` holds the pantry's state and CRUD
 logic on top of it (what's saved, how it's counted, its nutrition);
-`Packages/MealKit` holds the (in-progress, not yet UI-visible) meals
-feature's state — templates, logged/planned entries, nutrition aggregation
-and consumption stats — as a fully independent peer of `PantryKit`, sharing
-nothing with it but `FoodFoundation`; and `Packages/FoodpointKit` is a thin
+`Packages/MealKit` holds the meals feature's state — templates,
+logged/planned entries, nutrition aggregation and consumption stats — as a
+fully independent peer of `PantryKit`, sharing nothing with it but
+`FoodFoundation`; and `Packages/FoodpointKit` is a thin
 composition root tying all of that together as `AppState`, the single
 object the app injects into its environment. The SwiftUI app is a thin
 driver on top of all four: views, the camera scanner, and not much else.
@@ -66,6 +66,19 @@ default while the other stays available as an alternate, and declining
 ("Later") still remembers Open Food Facts' new numbers so the same change
 isn't asked about again next scan. Manage nutrition variants from the
 "Nutrition" screen, reachable the same way as "Package Sizes".
+
+The Meals tab is a thin placeholder around the meal-composition editor —
+the real day timeline/templates screen is still to come, but the editor
+itself works: build a meal from ingredient rows, each with an amount and a
+"Use from pantry" toggle (on by default), and a running nutrition footer
+that flags when data is incomplete rather than silently under-counting.
+Ingredients come from four sources — the pantry, previously-logged history
+(no network call), scanning, or searching by name (both reusing the same
+camera/search flows as the Items tab) — and a barcode `MealKit` has never
+used before gets a quick, ingredient-scoped weight/count setup prompt,
+independent of the pantry's own configuration for that product even if one
+exists. Logging a meal here doesn't yet decrement pantry stock — that
+orchestration, and a real day timeline, are still to come.
 
 This is an early solo prototype — expect rough edges and missing features.
 
@@ -118,7 +131,7 @@ to test.)
 ```
 Foodpoint/
   FoodpointApp.swift   App entry point
-  ContentView.swift    Root tab bar (Items, Scan)
+  ContentView.swift    Root tab bar (Items, Scan, Meals)
   ScannerView.swift    Scan-only acquire -> confirm -> configure-unit ->
                        save flow: barcode -> ProductLookup.fetch ->
                        save/discard. Both the Scan tab's root and, via
@@ -127,13 +140,25 @@ Foodpoint/
                        and Search by Name items) without duplicating this
                        logic
   Views/               SwiftUI views only — no business logic; read/write
-                        pantry state via `appState.pantry.*`
+                        pantry state via `appState.pantry.*` (or meals
+                        state via `appState.meals.*`)
     ItemsView.swift     Items tab; "•••" menu offers Scan Barcode (opens
                         ScannerView directly) and Search by Name (presents
                         ProductSearchView itself, then hands the chosen
                         barcode to ScannerView via a second, sequenced sheet)
     ProductSearchView.swift  Text search sheet; picking a result re-resolves
                               it by barcode through the same path a scan uses
+    MealsView.swift     Meals tab; today a thin placeholder — a "+" button
+                        opens MealCompositionEditorView, and finishing logs
+                        the meal directly via appState.meals.logEaten
+                        (no pantry orchestration yet)
+    MealCompositionEditorView.swift  Ingredient rows + running nutrition
+                        footer with a completeness signal; four ingredient
+                        sources (pantry/history/scan/search) behind an
+                        "Add Ingredient" menu
+    MealIngredientPantryPickerView.swift, MealIngredientHistoryPickerView.swift,
+    MealIngredientUnitSetupView.swift  The four sources' picker sheets used
+                        by the composition editor
   Scanners/             Barcode scanning (AVFoundation-backed UIViewRepresentable)
 
 Packages/
@@ -153,18 +178,24 @@ Packages/
       Models/FoodItem.swift  A saved product + quantity + unit
     Tests/PantryKitTests/  Swift Testing unit tests
 
-  MealKit/                Local Swift package: the (in-progress) meals
-                          feature's state and logic, UI-agnostic, depending
-                          only on FoodFoundation — zero dependency on
-                          PantryKit, by design, so the two stay decoupled
-                          peers
+  MealKit/                Local Swift package: the meals feature's state
+                          and logic, UI-agnostic, depending only on
+                          FoodFoundation — zero dependency on PantryKit, by
+                          design, so the two stay decoupled peers
     Sources/MealKit/
       MealStore.swift       Template CRUD; entry CRUD/lifecycle (log
                             directly as eaten, plan for later, markEaten,
                             undo); day/range nutrition aggregation with
-                            completeness reporting; consumption stats
+                            completeness reporting; consumption stats;
+                            makeIngredient (pure grams/nutrition math,
+                            shared with the composition editor's live
+                            amount editing) and recentlyUsedIngredients/
+                            lastKnownUnit (the "from history" source)
       Models/               MealTemplate, MealEntry, TemplateIngredient,
-                            LoggedIngredient, MealSlot, MealStatus,
+                            LoggedIngredient (+ impliedUnit/
+                            impliedNutritionPer100g, for editing a
+                            historical ingredient's amount with no network
+                            call), MealSlot, MealStatus,
                             NutritionCompleteness/DayNutritionTotal/
                             RangeNutritionSummary/ConsumptionStats
     Tests/MealKitTests/    Swift Testing unit tests

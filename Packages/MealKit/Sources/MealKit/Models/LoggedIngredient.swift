@@ -73,3 +73,38 @@ public struct LoggedIngredient: Identifiable, Codable, Equatable {
         self.usesFromPantry = usesFromPantry
     }
 }
+
+extension LoggedIngredient {
+    /// Reconstructs the `ProductUnit` this ingredient was logged with, from
+    /// `unitLabel`/`amount`/`gramsResolved` — `LoggedIngredient` doesn't
+    /// store a full `ProductUnit` (only the frozen `unitLabel`), but the
+    /// "from history" ingredient source (meals-feature-design.md §6.1 #2)
+    /// needs one so the composition editor (MK-2) can let the amount be
+    /// edited without a network call. `gramsPerUnit` is `amount`'s implied
+    /// grams-per-single-unit ratio (`gramsResolved / amount`); `nil` when
+    /// `amount` is zero, since the ratio is undefined.
+    ///
+    /// `quantityPerPackage` is set to this ingredient's own `amount` purely
+    /// so the value round-trips sensibly if inspected — `MealStore.makeIngredient`
+    /// only ever reads `gramsPerUnit`/`label` off a `ProductUnit`, never
+    /// `quantityPerPackage`.
+    public var impliedUnit: ProductUnit {
+        ProductUnit(
+            label: unitLabel,
+            quantityPerPackage: amount,
+            gramsPerUnit: amount > 0 ? gramsResolved / amount : nil
+        )
+    }
+
+    /// Reconstructs this ingredient's nutrition per 100g by inverting the
+    /// `scaled(by:)` call `MealStore.makeIngredient` applied at logging
+    /// time (`nutritionSnapshot = raw.scaled(by: gramsResolved / 100)`) —
+    /// lets the "from history" source (§6.1 #2) recompute a total for a
+    /// different amount without re-fetching from Open Food Facts. `nil`
+    /// when there was no nutrition data to begin with, or `gramsResolved`
+    /// is zero (the inverse scale factor would be undefined).
+    public var impliedNutritionPer100g: Nutrition? {
+        guard let nutritionSnapshot, gramsResolved > 0 else { return nil }
+        return nutritionSnapshot.scaled(by: 100 / gramsResolved)
+    }
+}
