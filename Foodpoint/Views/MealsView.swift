@@ -23,6 +23,13 @@ import FoodpointKit
 /// (`appState.undoMealEaten(_:)`), the one piece of UI this task's scope
 /// needs to make the "log, then undo, then confirm restored exactly" loop
 /// actually usable end to end, ahead of the real day timeline (MK-4/MK-5).
+///
+/// **MK-6 additions**, kept additive rather than restructuring this
+/// placeholder (a real day-timeline home is MK-5's job, in parallel):
+/// `DayTotalsHeaderView` above the list shows today's eaten/planned totals;
+/// a leading toolbar menu reaches the new `RangeSummaryView` (week/month)
+/// and `MostConsumedView`; each row now pushes `MealDetailView` for that
+/// entry's ingredient list and nutrition-source provenance mix.
 struct MealsView: View {
     @Environment(AppState.self) private var appState
     @State private var isShowingComposer = false
@@ -35,17 +42,25 @@ struct MealsView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if recentEntries.isEmpty {
-                    ContentUnavailableView(
-                        "No Meals Yet",
-                        systemImage: "fork.knife",
-                        description: Text("Compose a meal from your pantry, your history, or by scanning or searching for a product.")
-                    )
-                } else {
-                    List {
-                        ForEach(recentEntries) { entry in
-                            entryRow(entry)
+            VStack(spacing: 0) {
+                DayTotalsHeaderView(date: Date())
+                    .padding(.top, 8)
+
+                Group {
+                    if recentEntries.isEmpty {
+                        ContentUnavailableView(
+                            "No Meals Yet",
+                            systemImage: "fork.knife",
+                            description: Text("Compose a meal from your pantry, your history, or by scanning or searching for a product.")
+                        )
+                    } else {
+                        List {
+                            ForEach(recentEntries) { entry in
+                                NavigationLink {
+                                    MealDetailView(entry: entry)
+                                } label: {
+                                    entryRow(entry)
+                                }
                                 .swipeActions {
                                     if entry.status == .eaten {
                                         Button("Undo") {
@@ -54,12 +69,29 @@ struct MealsView: View {
                                         .tint(.orange)
                                     }
                                 }
+                            }
                         }
                     }
                 }
             }
             .navigationTitle("Meals")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
+                        NavigationLink {
+                            RangeSummaryView()
+                        } label: {
+                            Label("Range Summary", systemImage: "calendar")
+                        }
+                        NavigationLink {
+                            MostConsumedView()
+                        } label: {
+                            Label("Most Consumed", systemImage: "chart.bar")
+                        }
+                    } label: {
+                        Image(systemName: "chart.bar.doc.horizontal")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         isShowingComposer = true

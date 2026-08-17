@@ -166,14 +166,14 @@ dependency" below).
     - `MealIngredientPantryPickerView.swift`, `MealIngredientHistoryPickerView.swift`,
       `MealIngredientUnitSetupView.swift` (MK-2) — the four sources'
       picker sheets described above.
-    - `MealsView.swift` (MK-2/MK-3) — the Meals tab's current placeholder
-      body: a "+" button opens `MealCompositionEditorView`; its `onDone`
-      plans the composed ingredients (`appState.meals.plan`) then
-      immediately calls `appState.markMealEaten(_:)` to transition the
-      entry to `.eaten` and apply its pantry orchestration (MK-3,
-      package-architecture.md §3.5) — the two-step path because
-      `markMealEaten` only operates on a `.planned` entry, matching
-      `MealStore.markEaten`'s own contract. If
+    - `MealsView.swift` (MK-2/MK-3, header/nav additions MK-6) — the Meals
+      tab's placeholder body: a "+" button opens
+      `MealCompositionEditorView`; its `onDone` plans the composed
+      ingredients (`appState.meals.plan`) then immediately calls
+      `appState.markMealEaten(_:)` to transition the entry to `.eaten` and
+      apply its pantry orchestration (MK-3, package-architecture.md §3.5) —
+      the two-step path because `markMealEaten` only operates on a
+      `.planned` entry, matching `MealStore.markEaten`'s own contract. If
       `appState.insufficientStockIngredients(for:)` reports any ingredient
       came up short against pantry stock, this shows a non-blocking
       "Insufficient Stock" alert (meals-feature-design.md §4.4's soft
@@ -181,7 +181,57 @@ dependency" below).
       row also has a swipe-to-undo action calling
       `appState.undoMealEaten(_:)`, which restores pantry stock exactly
       (see the `FoodpointKit` bullet below) and moves the entry back to
-      `.planned`.
+      `.planned`. **MK-6 additions, kept additive** (this file is a
+      three-way conflict point with MK-4/MK-5, which build the real day
+      timeline/templates on top of this same placeholder — see those
+      tasks' own notes): a `DayTotalsHeaderView` above the list; a leading
+      toolbar `Menu` reaching `RangeSummaryView`/`MostConsumedView`; each
+      row wrapped in a `NavigationLink` to `MealDetailView`.
+    - `DayTotalsHeaderView.swift` (MK-6) — day totals header: eaten
+      calories/macros with a completeness signal (§8.2), plus planned
+      calories as a separate "planned +X" projection line
+      (meals-feature-design.md §8.1's "eaten 1,240 kcal · planned +610"
+      example) whenever `MealStore.dayTotal(for:)` reports any `.planned`
+      entries for that day — built directly against `dayTotal`'s existing
+      `eaten`/`planned` split (present since MK-1), so this degrades to
+      "eaten only" today (no planning UI exists yet in this branch) and
+      needs no rewrite once MK-5's planning screens create `.planned`
+      entries.
+    - `RangeSummaryView.swift` (MK-6) — week/month range summary: a
+      segmented Week/Month picker, `MealStore.rangeSummary(from:to:)`'s
+      per-day totals, its `averageEatenPerDay`, and its `caloricTrend`
+      (new, `RangeNutritionSummary` computed property — compares the mean
+      eaten calories across the first vs. second half of the range,
+      `.flat` under a 5% difference or fewer than two days). Deliberately
+      *description*, not *evaluation* — no goals/targets shown or implied
+      (meals-feature-design.md §11).
+    - `MostConsumedView.swift` (MK-6) — Meals tab's most-consumed list
+      across all products over the trailing 30 days
+      (`MealStore.mostConsumed(from:to:)`, meals-feature-design.md §9).
+      `ConsumptionStats` only carries a barcode, so this view resolves each
+      row's display name/image via `appState.meals.recentlyUsedIngredients()`
+      (no network call), the same trick the composition editor's "from
+      history" source uses.
+    - `MealDetailView.swift` (MK-6) — one `MealEntry`'s ingredient rows,
+      nutrition completeness total, and — new — its nutrition-source
+      provenance mix (`MealStore.provenanceMix(for:)`,
+      meals-feature-design.md §8.3): a proportional bar plus counts of how
+      many ingredients' `nutritionSnapshot` came from Open Food Facts vs.
+      Custom vs. unknown-source. Pushed from `MealsView`'s entry rows.
+    - `ItemDetailView.swift` — an existing pantry-item detail screen
+      (nutrition, quantity, "Package Sizes"/"Nutrition" management),
+      **not new**; gained a **Consumption** section (MK-6,
+      meals-feature-design.md §9): last eaten, times eaten, total amount
+      over the last 30 days, via
+      `appState.meals.consumptionStats(barcode:from:to:)` keyed by the
+      item's barcode. This is the one place this file reaches into
+      `appState.meals` — the cross-referencing-by-barcode this repo's
+      `MealKit`-stays-ignorant-of-`PantryKit` rule pushes out to view/glue
+      code (same pattern as MK-2's pantry-ingredient-source, just in the
+      other direction). The displayed unit label is read from
+      `appState.meals.recentlyUsedIngredients()` (what `MealKit` actually
+      logged amounts in), not the pantry's own current unit, since the two
+      are independently configured and can differ (§6.3).
   - `Scanners/` — Barcode scanning. Wraps `AVFoundation`
     (`AVCaptureSession`) directly via `UIViewRepresentable`; not a
     SwiftUI-native camera API, and specifically not VisionKit's
@@ -356,7 +406,7 @@ dependency" below).
     `templates: [MealTemplate]` and `entries: [MealEntry]`, plus template
     CRUD (`addTemplate`/`updateTemplate`/`removeTemplate`) and entry
     CRUD/lifecycle:
-    - `makeIngredient(barcode:productName:productBrand:imageURL:nutritionPer100g:amount:unit:usesFromPantry:)` —
+    - `makeIngredient(barcode:productName:productBrand:imageURL:nutritionPer100g:amount:unit:nutritionSource:usesFromPantry:)` —
       `public static`, pure, and network-free: the actual
       `grams = amount × unit.gramsPerUnit` + nutrition-scaling arithmetic
       shared by `resolveIngredient` and `instantiate` below. Extracted
@@ -365,7 +415,13 @@ dependency" below).
       without re-fetching — pair with `LoggedIngredient.impliedUnit`/
       `.impliedNutritionPer100g` (see the Models bullet below) to
       round-trip an already-resolved ingredient through this function
-      again for a new amount.
+      again for a new amount. `nutritionSource` (MK-6) defaults to
+      `.openFoodFacts`, true of every acquisition path that resolves via
+      `ProductResolver`; only the app-layer "from pantry" source
+      (`MealCompositionEditorView.addFromPantry`) passes something else,
+      reading the barcode's actual currently-default source out of
+      `appState.pantry.nutritionConfigs` — the one place `MealKit`'s own
+      code stays ignorant of "custom" nutrition existing at all.
     - `resolveIngredient`/`resolveTemplateIngredient` — resolve a barcode
       and snapshot everything a `LoggedIngredient`/`TemplateIngredient`
       needs (name, brand, image, and, for the logged variant, nutrition
@@ -407,15 +463,26 @@ dependency" below).
       never trust/display a total without checking `isComplete` first
       (§8.2, mirrors `Nutrition.isEffectivelyEmpty`'s honesty principle).
       `rangeSummary` includes every calendar day in the range, even ones
-      with zero entries, so `averageEatenPerDay` is a true per-day average.
-      Both build on `completeness(for:)`, `public static` (not just
-      `private`) specifically so the composition editor's live running
-      footer (MK-2) can compute the same signal over whatever's currently
-      in the editor, ahead of any `MealEntry` existing.
+      with zero entries, so `averageEatenPerDay` is a true per-day average,
+      and its result (`RangeNutritionSummary`) has a `caloricTrend`
+      computed property (MK-6) — a plain `.increasing`/`.decreasing`/`.flat`
+      description (never a judgment; no goals/targets exist, §11) comparing
+      the mean eaten calories across the range's first vs. second half.
+      Both `dayTotal`/`rangeSummary` build on `completeness(for:)`, `public
+      static` (not just `private`) specifically so the composition editor's
+      live running footer (MK-2) can compute the same signal over whatever's
+      currently in the editor, ahead of any `MealEntry` existing.
+    - `provenanceMix(for:)` (MK-6) — mirrors `completeness(for:)`: tallies
+      ingredients by `nutritionSource` (Open Food Facts vs. Custom vs.
+      unrecorded) into a `NutritionProvenanceMix`, for a meal detail view's
+      provenance-mix display (meals-feature-design.md §8.3).
     - `consumptionStats(barcode:from:to:)`/`mostConsumed(from:to:)` — how
       often/how much a product was eaten; counts every `.eaten` ingredient
       row regardless of `usesFromPantry` ("did I eat this" != "did it come
-      from my shelf" — meals-feature-design.md §9).
+      from my shelf" — meals-feature-design.md §9). Used as-is by MK-6's
+      `ItemDetailView` Consumption section and `MostConsumedView` — no
+      changes needed to either method themselves, only new view-layer
+      callers with a trailing-30-day range.
     - `MealStore.init(productResolver:)` takes a `ProductResolver =
       @Sendable (String) async throws -> Product` closure, defaulting to
       `FoodFoundation.ProductLookup.fetch`. This is a testability seam
@@ -437,12 +504,14 @@ dependency" below).
     ingredient alone, never shared with `PantryKit`'s per-barcode
     configuration even for the same barcode), `LoggedIngredient` (same
     identity fields as `TemplateIngredient` plus `unitLabel`,
-    `gramsResolved`, and `nutritionSnapshot: Nutrition?` — all frozen at
-    logging time, never re-touched afterward: **pantry state is live, meal
-    history is frozen**, meals-feature-design.md §4.3). `LoggedIngredient`
-    also has two computed properties, `impliedUnit`/
-    `impliedNutritionPer100g`, that reconstruct (respectively) the
-    `ProductUnit` and per-100g `Nutrition` this ingredient was logged
+    `gramsResolved`, `nutritionSnapshot: Nutrition?`, and (MK-6)
+    `nutritionSource: NutritionSource?` — all frozen at logging time, never
+    re-touched afterward: **pantry state is live, meal history is frozen**,
+    meals-feature-design.md §4.3; `nutritionSource` is `nil` whenever
+    `nutritionSnapshot` is, since provenance is moot with no data to
+    provenance). `LoggedIngredient` also has two computed properties,
+    `impliedUnit`/`impliedNutritionPer100g`, that reconstruct (respectively)
+    the `ProductUnit` and per-100g `Nutrition` this ingredient was logged
     with, by inverting the `gramsResolved`/`amount` ratio and the
     `scaled(by:)` call `makeIngredient` applied — what lets the "from
     history" ingredient source (§6.1 #2, MK-2) let the amount be edited
@@ -452,8 +521,13 @@ dependency" below).
     (`.breakfast`/`.lunch`/`.dinner`/`.snack`, fixed — not user-configurable
     — with a `current(at:calendar:)` time-of-day default), `MealStatus`
     (`.planned`/`.eaten`), and `NutritionCompleteness`/`DayNutritionTotal`/
-    `RangeNutritionSummary`/`ConsumptionStats` (the aggregation/stats
-    result types `MealStore` returns).
+    `RangeNutritionSummary` (+ `caloricTrend`, MK-6)/`ConsumptionStats`/
+    `NutritionProvenanceMix` (MK-6, `MealStore.provenanceMix(for:)`'s
+    result type) — the aggregation/stats result types `MealStore` returns.
+    `FoodFoundation.NutritionSource` (already used by `PantryKit`'s
+    `NutritionVariant`) picked up `Codable` conformance for this — it's
+    otherwise unchanged, still the one provenance-tag type; `MealKit`
+    reuses it rather than inventing its own.
   - `Sources/MealKit/NutritionMath.swift` — `internal` `+`/`/` operators on
     `FoodFoundation.Nutrition`, used only by this package's aggregation.
     Kept local to `MealKit` rather than added to `FoodFoundation`, since
@@ -468,7 +542,11 @@ dependency" below).
     `recentlyUsedIngredients()`, `lastKnownUnit(forBarcode:)`, and
     `LoggedIngredient.impliedUnit`/`.impliedNutritionPer100g` — all
     without a `StubProductResolver`, since none of it makes a resolver
-    call.
+    call. `ProvenanceMixTests.swift` (MK-6) covers `provenanceMix(for:)`
+    and `makeIngredient`'s `nutritionSource` threading; `RangeTrendTests.swift`
+    (MK-6) covers `RangeNutritionSummary.caloricTrend`'s increasing/
+    decreasing/flat/empty-range cases — both new, pure, network-free
+    suites in the same no-`StubProductResolver` style.
 
 - `Packages/OpenFoodFactsKit/` (local package, product `OpenFoodFactsKit`) —
   all networking and wire-format types for Open Food Facts' APIs:

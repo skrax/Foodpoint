@@ -2,7 +2,11 @@ import Foundation
 
 /// Where a `NutritionVariant`'s numbers came from — shown as a badge so the
 /// user can always tell configured data apart from Open Food Facts' own.
-public enum NutritionSource: String {
+/// `Codable` (in addition to the free `Equatable`/`Hashable` every
+/// no-payload enum gets) specifically so `MealKit.LoggedIngredient` can
+/// freeze one onto itself at logging time (meals-feature-design.md §8.3's
+/// provenance mix) and stay a plain `Codable` value type per §12 decision #1.
+public enum NutritionSource: String, Codable {
     case openFoodFacts = "Open Food Facts"
     case custom = "Custom"
 }
