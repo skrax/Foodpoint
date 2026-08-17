@@ -36,8 +36,11 @@ public struct Product: Identifiable {
 }
 
 /// Nutrition facts, per 100g of product (or, after `scaled(by:)`, per
-/// count-unit — see `ItemDetailView`).
-public struct Nutrition {
+/// count-unit — see `ItemDetailView`). `Codable`/`Equatable` so downstream
+/// packages (`MealKit`'s `LoggedIngredient.nutritionSnapshot`) can embed and
+/// persist it directly — see meals-feature-design.md §12 decision #1
+/// ("plain, Codable-friendly value types").
+public struct Nutrition: Codable, Equatable {
     public let energyKcal100g: Double?
     public let proteins100g: Double?
     public let carbohydrates100g: Double?

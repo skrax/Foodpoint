@@ -2,7 +2,7 @@
 id: MK-1
 epic: meals-feature
 title: MealKit core model and aggregation
-status: backlog
+status: done
 depends_on: [PA-5, PA-3]
 design_doc: meals-feature-design.md#4-concepts-and-data-model
 ---
@@ -38,23 +38,23 @@ New `Packages/MealKit/` (depends only on `FoodFoundation`):
 
 ## Acceptance criteria
 
-- [ ] `Packages/MealKit` builds and tests standalone; **zero import of
+- [x] `Packages/MealKit` builds and tests standalone; **zero import of
       `PantryKit`** anywhere in the target or its test target
-- [ ] Aggregation across mixed weight- and count-tracked ingredients
-- [ ] Totals report completeness when ingredients lack nutrition data
-- [ ] Planned entries excluded from eaten totals, included as a separate
+- [x] Aggregation across mixed weight- and count-tracked ingredients
+- [x] Totals report completeness when ingredients lack nutrition data
+- [x] Planned entries excluded from eaten totals, included as a separate
       projection
-- [ ] Adding an ingredient snapshots product identity immediately;
+- [x] Adding an ingredient snapshots product identity immediately;
       browsing history requires no network call for already-added
       ingredients
-- [ ] Template instantiation re-resolves nutrition fresh, not a stale
+- [x] Template instantiation re-resolves nutrition fresh, not a stale
       cached value
-- [ ] `usesFromPantry` seeds from the template's default but is
+- [x] `usesFromPantry` seeds from the template's default but is
       independently editable per logged instance
-- [ ] Consumption rate calculation across a date range, including days
+- [x] Consumption rate calculation across a date range, including days
       with no entries
-- [ ] `AppState.meals: MealStore` exists
-- [ ] README.md / AGENTS.md updated to describe `MealKit`
+- [x] `AppState.meals: MealStore` exists
+- [x] README.md / AGENTS.md updated to describe `MealKit`
 
 ## Out of scope
 
