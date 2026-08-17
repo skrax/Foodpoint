@@ -9,22 +9,28 @@
 import SwiftUI
 import FoodpointKit
 
-/// "Scan" tab: scan a barcode (or, via `ProductSearchView`, search by name
-/// for something with no barcode — fresh produce, bulk goods), look up the
-/// product on Open Food Facts, and either save it (into the flat item
-/// list, configuring its unit first if this barcode has never been saved
-/// before) or discard it and scan again. Both acquisition paths converge
-/// on the same barcode-driven flow below (`fetchFoodData(for:)`) — a
-/// search result is re-resolved by its barcode rather than reusing the
-/// already-fetched product, so there's exactly one downstream code path.
+/// "Scan" tab: scan a barcode, look up the product on Open Food Facts, and
+/// either save it (into the flat item list, configuring its unit first if
+/// this barcode has never been saved before) or discard it and scan again.
+/// Scan-only — search-by-name lives in `ProductSearchView`, reached from
+/// `ItemsView`'s "•••" acquisition menu (UX-1), not from here (UX-2
+/// removed the "Search by Name" button this view used to also show; see
+/// `EntryPoint.resolved` below for how a search result still reaches this
+/// view's flow without this view presenting any search UI itself).
 ///
 /// Also presentable as a sheet from `ItemsView`'s "•••" acquisition menu
-/// (UX-1) via `entryPoint`, rather than only as the Scan tab's root — that
-/// reuses this entire flow with no duplication. `entryPoint` is `nil` for
-/// the tab (today's behavior, unchanged); non-`nil` when presented from
-/// elsewhere, which immediately opens the matching sheet on appear and
-/// adds a Cancel button, since there's no persistent "No Product Scanned"
-/// landing screen to act as the entry affordance in that context.
+/// via `entryPoint`, rather than only as the Scan tab's root — that reuses
+/// this entire flow with no duplication. `entryPoint` is `nil` for the tab
+/// (today's behavior, unchanged); non-`nil` when presented from elsewhere,
+/// which immediately acts on appear and adds a Cancel button, since
+/// there's no persistent "No Product Scanned" landing screen to act as the
+/// entry affordance in that context. `.resolved(barcode:)` is how
+/// `ItemsView`'s "Search by Name" menu item plugs in: it presents
+/// `ProductSearchView` itself, then hands the chosen barcode to this view
+/// via that case, which re-resolves it through the same `fetchFoodData(for:)`
+/// this view's own camera uses — so a search result is re-resolved by its
+/// barcode rather than reusing the already-fetched product, keeping
+/// exactly one downstream code path, not two to maintain.
 ///
 /// For a barcode that's already configured, the package-size fields are
 /// still shown (pre-filled from the saved config) rather than a static
@@ -39,7 +45,13 @@ struct ScannerView: View {
     /// How this view was entered when presented as a sheet rather than
     /// shown as the Scan tab's root. See the type-level doc comment.
     enum EntryPoint: Equatable {
-        case scan, search
+        /// Open the camera immediately (`ItemsView`'s "Scan Barcode" menu item).
+        case scan
+        /// A barcode already chosen elsewhere — currently `ProductSearchView`,
+        /// presented by `ItemsView`'s "Search by Name" menu item, not by this
+        /// view — to fetch immediately via the same `fetchFoodData(for:)`
+        /// the camera path uses, skipping both the camera and any search UI.
+        case resolved(barcode: String)
     }
 
     private enum UnitField: Hashable {
@@ -51,7 +63,6 @@ struct ScannerView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @State private var isShowingScanner = false
-    @State private var isShowingSearch = false
     /// Guards the `entryPoint` auto-trigger so it only fires once per
     /// presentation, not on every `onAppear` (e.g. after a child sheet dismisses).
     @State private var hasAutoTriggeredEntryPoint = false
@@ -148,16 +159,6 @@ struct ScannerView: View {
                     .buttonStyle(.borderedProminent)
                     .padding(.horizontal)
                     .disabled(isLoading)
-
-                    Button {
-                        isShowingSearch = true
-                    } label: {
-                        Label("Search by Name", systemImage: "magnifyingglass")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .padding(.horizontal)
-                    .disabled(isLoading)
                 }
             }
             .navigationTitle("Food Tracker")
@@ -183,11 +184,6 @@ struct ScannerView: View {
 
                     ViewfinderOverlay()
                         .ignoresSafeArea()
-                }
-            }
-            .sheet(isPresented: $isShowingSearch) {
-                ProductSearchView { barcode in
-                    fetchFoodData(for: barcode)
                 }
             }
             .alert(
@@ -475,33 +471,30 @@ struct ScannerView: View {
         scanAgain()
     }
 
-    /// Reopens whichever acquisition method is active — the camera by
-    /// default, or search again if this presentation was entered via
-    /// search (`entryPoint == .search`), so completing a search-originated
-    /// save doesn't unexpectedly pop the barcode camera instead.
+    /// Reopens the camera for the next scan. Always the camera now —
+    /// `ScannerView` is scan-only, so there's no other acquisition method
+    /// to return to even when this presentation was entered via
+    /// `.resolved(barcode:)` (a search-originated save completing here
+    /// still just goes back to scanning, the same as any other save).
     private func scanAgain() {
         errorMessage = nil
-        if entryPoint == .search {
-            isShowingSearch = true
-        } else {
-            isShowingScanner = true
-        }
+        isShowingScanner = true
     }
 
-    /// Immediately opens the matching sheet when presented via `entryPoint`
-    /// (from `ItemsView`'s acquisition menu) rather than as the Scan tab's
-    /// root, so there's no extra tap on a "No Product Scanned" landing
-    /// screen the user didn't need to see — they already chose scan or
-    /// search from the menu. No-op for the tab (`entryPoint == nil`) and
-    /// only fires once per presentation.
+    /// Immediately acts on `entryPoint` when presented from elsewhere (from
+    /// `ItemsView`'s acquisition menu) rather than as the Scan tab's root,
+    /// so there's no extra tap on a "No Product Scanned" landing screen the
+    /// user didn't need to see — they already chose scan or search from the
+    /// menu. No-op for the tab (`entryPoint == nil`) and only fires once
+    /// per presentation.
     private func triggerEntryPointIfNeeded() {
         guard let entryPoint, !hasAutoTriggeredEntryPoint else { return }
         hasAutoTriggeredEntryPoint = true
         switch entryPoint {
         case .scan:
             isShowingScanner = true
-        case .search:
-            isShowingSearch = true
+        case .resolved(let barcode):
+            fetchFoodData(for: barcode)
         }
     }
 
