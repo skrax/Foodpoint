@@ -20,7 +20,12 @@ public enum UnitTrackingMode: String, CaseIterable, Identifiable {
 /// even if the item is fully consumed and removed from `items`. `id` gives
 /// each variant a stable identity for editing/selection independent of its
 /// (possibly-edited) `name` or values.
-public struct ProductUnit: Identifiable {
+///
+/// `Codable`/`Equatable` so downstream packages (`MealKit`'s
+/// `TemplateIngredient.unit`) can embed and persist it directly — see
+/// meals-feature-design.md §12 decision #1 ("plain, Codable-friendly value
+/// types").
+public struct ProductUnit: Identifiable, Codable, Equatable {
     public let id: UUID
     /// User-facing name for this package-size variant, e.g. "Default", "Small", "Large".
     public var name: String

@@ -12,11 +12,14 @@ integration — lives in local, UI-agnostic Swift packages, each with its own
 unit test suite: `Packages/FoodFoundation` holds the shared domain types
 (`Product`, `Nutrition`, `ProductUnit`, `NutritionVariant`, `FoodCategory`)
 and product lookup; `Packages/PantryKit` holds the pantry's state and CRUD
-logic on top of it (what's saved, how it's counted, its nutrition); and
-`Packages/FoodpointKit` is a thin composition root tying that together as
-`AppState`, the single object the app injects into its environment. The
-SwiftUI app is a thin driver on top of all three: views, the camera
-scanner, and not much else.
+logic on top of it (what's saved, how it's counted, its nutrition);
+`Packages/MealKit` holds the (in-progress, not yet UI-visible) meals
+feature's state — templates, logged/planned entries, nutrition aggregation
+and consumption stats — as a fully independent peer of `PantryKit`, sharing
+nothing with it but `FoodFoundation`; and `Packages/FoodpointKit` is a thin
+composition root tying all of that together as `AppState`, the single
+object the app injects into its environment. The SwiftUI app is a thin
+driver on top of all four: views, the camera scanner, and not much else.
 
 Both ways to add a product — scanning and searching — are reachable from
 the Items tab's "•••" menu without leaving the list; the Scan tab itself is
@@ -103,6 +106,7 @@ touching Xcode or a simulator:
 ```bash
 cd Packages/FoodFoundation && swift test
 cd Packages/PantryKit && swift test
+cd Packages/MealKit && swift test
 ```
 
 (`FoodpointKit` has no test target right now — it's pure composition/wiring
@@ -135,9 +139,12 @@ Foodpoint/
 Packages/
   FoodpointKit/          Local Swift package: the composition root
     Sources/FoodpointKit/
-      AppState.swift      `AppState.shared` holds `pantry: PantryStore`
-                           (and, in future, `meals: MealStore`); no logic
-                           of its own beyond composing them
+      AppState.swift      `AppState.shared` holds `pantry: PantryStore` and
+                           `meals: MealStore` as independent peers; no logic
+                           of its own beyond composing them (cross-domain
+                           orchestration between the two, e.g. logging a
+                           meal decrementing pantry stock, is a future
+                           addition here, not yet implemented)
 
   PantryKit/              Local Swift package: pantry state and CRUD, UI-agnostic
     Sources/PantryKit/
@@ -146,8 +153,24 @@ Packages/
       Models/FoodItem.swift  A saved product + quantity + unit
     Tests/PantryKitTests/  Swift Testing unit tests
 
+  MealKit/                Local Swift package: the (in-progress) meals
+                          feature's state and logic, UI-agnostic, depending
+                          only on FoodFoundation — zero dependency on
+                          PantryKit, by design, so the two stay decoupled
+                          peers
+    Sources/MealKit/
+      MealStore.swift       Template CRUD; entry CRUD/lifecycle (log
+                            directly as eaten, plan for later, markEaten,
+                            undo); day/range nutrition aggregation with
+                            completeness reporting; consumption stats
+      Models/               MealTemplate, MealEntry, TemplateIngredient,
+                            LoggedIngredient, MealSlot, MealStatus,
+                            NutritionCompleteness/DayNutritionTotal/
+                            RangeNutritionSummary/ConsumptionStats
+    Tests/MealKitTests/    Swift Testing unit tests
+
   FoodFoundation/        Local Swift package: shared domain types and product
-                          lookup, depended on by PantryKit (and, in future, MealKit)
+                          lookup, depended on by PantryKit and MealKit
     Sources/FoodFoundation/
       ProductLookup.swift  Maps OpenFoodFactsKit's DTOs to Product/Nutrition;
                             resolves a barcode (.fetch) or a text query

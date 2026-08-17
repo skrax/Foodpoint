@@ -16,7 +16,10 @@ item list is the current, intentional design, not a placeholder.)
 All business logic lives in local, UI-agnostic Swift packages (no
 `import SwiftUI`, no view code anywhere in them): `FoodFoundation` holds
 the shared domain types and product lookup; `PantryKit` holds the pantry's
-state and CRUD logic on top of it (each with its own unit test suite);
+state and CRUD logic on top of it; `MealKit` holds the (in-progress, not
+yet wired into any view) meals feature's state and logic on top of it too
+— a fully independent peer of `PantryKit`, sharing nothing with it but
+`FoodFoundation` (each of the three with its own unit test suite);
 `FoodpointKit` is a thin composition root exposing all of this as a single
 `AppState`, the object the app actually injects into its environment. The
 `Foodpoint` app target is a thin driver: SwiftUI views, the AVFoundation
@@ -46,6 +49,7 @@ business-logic changes:
 ```bash
 cd Packages/FoodFoundation && swift test
 cd Packages/PantryKit && swift test
+cd Packages/MealKit && swift test
 ```
 
 (`FoodpointKit` has no test target right now — see its bullet below.)
@@ -129,35 +133,39 @@ dependency" below).
 
 - `Packages/FoodpointKit/` (local package, product `FoodpointKit`) — the
   composition root, no `import SwiftUI` anywhere in it. Depends on
-  `FoodFoundation` and `PantryKit` (both re-exported — see below):
+  `FoodFoundation`, `PantryKit`, and `MealKit` (all three re-exported —
+  see below):
   - `Sources/FoodpointKit/AppState.swift` — the `@Observable` state
     container the app actually uses, via the `AppState.shared` singleton
     and `@Environment(AppState.self)`; `init()` is public rather than
     private specifically so tests can construct isolated instances instead
     of sharing global state across test cases. Holds no logic of its own —
-    just `public let pantry = PantryStore()` (and, once `MealKit` exists,
-    `meals: MealStore` alongside it). Deliberately **no forwarding
-    properties**: call sites go through `appState.pantry.*`, not
-    `appState.*`, since re-declaring `PantryStore`'s whole surface here
-    would just be boilerplate duplicating an API one property away (see
-    package-architecture.md §3.5). `@_exported import FoodFoundation` and
-    `@_exported import PantryKit` at the top mean any file that imports
-    `FoodpointKit` (the app included) can use `Product`, `PantryStore`,
-    `FoodItem`, etc. directly without importing those packages itself —
-    keep those re-exports if you touch this file's imports.
-  - **No test target right now.** Composing `pantry: PantryStore` is pure
-    wiring with no logic of its own to test; `FoodpointKitTests` returns
-    once cross-domain orchestration lands here (e.g. a future meal-logged
-    event decrementing pantry stock — see package-architecture.md §3.5,
-    §4.2). An empty declared test target makes `swift test` hard-error
-    (`swift build` only warns), so the target is removed rather than left
-    empty — re-add it in `Package.swift` when there's something to put in it.
+    just `public let pantry = PantryStore()` and `public let meals =
+    MealStore()`, as independent peers (neither knows the other exists).
+    Deliberately **no forwarding properties**: call sites go through
+    `appState.pantry.*`/`appState.meals.*`, not `appState.*`, since
+    re-declaring `PantryStore`'s/`MealStore`'s whole surface here would
+    just be boilerplate duplicating an API one property away (see
+    package-architecture.md §3.5). `@_exported import FoodFoundation`,
+    `@_exported import PantryKit`, and `@_exported import MealKit` at the
+    top mean any file that imports `FoodpointKit` (the app included) can
+    use `Product`, `PantryStore`, `FoodItem`, `MealStore`, `MealTemplate`,
+    etc. directly without importing those packages itself — keep those
+    re-exports if you touch this file's imports.
+  - **No test target right now.** Composing `pantry: PantryStore`/
+    `meals: MealStore` is pure wiring with no logic of its own to test;
+    `FoodpointKitTests` returns once cross-domain orchestration lands here
+    (e.g. a future meal-logged event decrementing pantry stock — see
+    package-architecture.md §3.5, §4.2, tracked as MK-3). An empty declared
+    test target makes `swift test` hard-error (`swift build` only warns),
+    so the target is removed rather than left empty — re-add it in
+    `Package.swift` when there's something to put in it.
 
 - `Packages/PantryKit/` (local package, product `PantryKit`) — the
   pantry's state and CRUD logic, no `import SwiftUI` anywhere in it.
   Depends on `FoodFoundation` only — no dependency on `FoodpointKit`, and
-  (once it exists) no dependency on `MealKit` either; the two are meant to
-  stay decoupled peers, per package-architecture.md §1:
+  no dependency on `MealKit` either; the two are meant to stay decoupled
+  peers, per package-architecture.md §1:
   - `Sources/PantryKit/PantryStore.swift` — the `@Observable` store.
     Construct a fresh `PantryStore()` in tests, never a shared singleton —
     it's a single mutable instance and tests may run in any order. Holds
@@ -201,31 +209,119 @@ dependency" below).
     whole dependency graph, that imports `OpenFoodFactsKit` and touches its
     `FoodProduct`/`SearchedProduct`/`Nutriments` DTOs directly; everywhere
     else works with `Product`/`Nutrition`. Two stateless entry points, both
-    independent of any package's state (`PantryKit` and, in future,
-    `MealKit` each call whichever they need directly, never through one
-    another): `ProductLookup.fetch(barcode:)` for a known barcode, and
+    independent of any package's state (`PantryKit` and `MealKit` each call
+    whichever they need directly, never through one another):
+    `ProductLookup.fetch(barcode:)` for a known barcode, and
     `ProductLookup.search(query:)` for free-text search (no barcode
     needed) — see "Product search" below for why the latter maps a
     different DTO, not `FoodProduct` again.
   - `Sources/FoodFoundation/Models/` — Plain data types: `Product`/`Nutrition`
-    (the app's own domain model, decoupled from OFF's wire format),
+    (the app's own domain model, decoupled from OFF's wire format;
+    `Nutrition` is `Codable`/`Equatable` so `MealKit`'s
+    `LoggedIngredient.nutritionSnapshot` can embed and eventually persist
+    it directly),
     `ProductUnit`/`UnitTrackingMode` (how a product's quantity is counted —
     by discrete count or by weight, with the grams-per-unit math used for
     per-unit nutrition — plus a stable `id` and user-facing `name` since a
-    barcode can have several named variants), `NutritionVariant`/
+    barcode can have several named variants; `ProductUnit` is also
+    `Codable`/`Equatable` for the same reason, since `MealKit`'s
+    `TemplateIngredient.unit` embeds it), `NutritionVariant`/
     `NutritionSource` (a named nutrition data set tagged `.openFoodFacts`
     or `.custom` — mirrors `ProductUnit`'s variant shape), `FoodCategory`
     (best-effort category/icon guess from Open Food Facts tags), and
     `NumericInput` (`String.localizedDouble` — see "Numeric text input"
     below). Note: `ProductUnit`/`NutritionVariant` are the plain *types*
     only — their per-barcode variant CRUD lives in `PantryKit.PantryStore`,
-    not here.
+    not here (and `MealKit` has no equivalent per-barcode CRUD at all —
+    see its bullet below).
     `Nutrition.isEffectivelyEmpty` (all fields nil-or-zero) is the check
     used to treat an Open-Food-Facts entry with no real data as "no data"
     instead of displaying zeroes — some OFF products carry a `nutriments`
     object with every field blank rather than omitting it.
   - `Tests/FoodFoundationTests/` — Swift Testing, same conventions as
     `PantryKitTests`.
+
+- `Packages/MealKit/` (local package, product `MealKit`) — the (in-progress,
+  not yet UI-visible) meals feature's state and logic, no `import SwiftUI`
+  anywhere in it. Depends on `FoodFoundation` **only** — no dependency on
+  `PantryKit`, checked by grep in this package's own acceptance criteria
+  (MK-1); see package-architecture.md §1/§3.4 for the "treat `PantryKit`
+  and `MealKit` like separate applications" rule this exists to enforce:
+  - `Sources/MealKit/MealStore.swift` — the `@Observable` store. Construct
+    a fresh `MealStore()` in tests, same rule as `PantryStore`. Holds
+    `templates: [MealTemplate]` and `entries: [MealEntry]`, plus template
+    CRUD (`addTemplate`/`updateTemplate`/`removeTemplate`) and entry
+    CRUD/lifecycle:
+    - `resolveIngredient`/`resolveTemplateIngredient` — resolve a barcode
+      and snapshot everything a `LoggedIngredient`/`TemplateIngredient`
+      needs (name, brand, image, and, for the logged variant, nutrition)
+      immediately, one network call, right now — never deferred, so
+      browsing an already-added ingredient later needs no further call.
+    - `instantiate(_:)` — turns a `MealTemplate`'s ingredients into
+      `LoggedIngredient`s by **re-resolving nutrition fresh** via
+      `ProductLookup.fetch` every single time, never reusing a previous
+      instantiation's cached value (meals-feature-design.md §4.1) — the
+      network cost is accepted, same tradeoff re-scanning a barcode
+      already has elsewhere in this app. `logTemplate`/`planTemplate` wrap
+      this plus `logEaten`/`plan` for one-tap logging.
+    - `logEaten`/`plan` — create an entry as `.eaten` or `.planned`
+      directly from already-resolved ingredients.
+    - `markEaten(_:)`/`undo(_:)` — transition `.planned` <-> `.eaten` and
+      return the finalized/reverted `MealEntry`, **never touching
+      inventory themselves**. The caller (`FoodpointKit`, once MK-3 lands)
+      iterates `entry.ingredients` where `usesFromPantry` is `true` to
+      decrement/restore the right pantry items — see
+      package-architecture.md §3.5's example. `removeEntry` follows the
+      same "hand back what changed" contract, returning the deleted entry.
+    - `dayTotal(for:)`/`rangeSummary(from:to:)` — nutrition aggregation.
+      `.eaten` and `.planned` totals are always kept separate, never
+      summed (meals-feature-design.md §8.1), and every total is a
+      `NutritionCompleteness` carrying `missingCount` alongside the sum —
+      never trust/display a total without checking `isComplete` first
+      (§8.2, mirrors `Nutrition.isEffectivelyEmpty`'s honesty principle).
+      `rangeSummary` includes every calendar day in the range, even ones
+      with zero entries, so `averageEatenPerDay` is a true per-day average.
+    - `consumptionStats(barcode:from:to:)`/`mostConsumed(from:to:)` — how
+      often/how much a product was eaten; counts every `.eaten` ingredient
+      row regardless of `usesFromPantry` ("did I eat this" != "did it come
+      from my shelf" — meals-feature-design.md §9).
+    - `MealStore.init(productResolver:)` takes a `ProductResolver =
+      @Sendable (String) async throws -> Product` closure, defaulting to
+      `FoodFoundation.ProductLookup.fetch`. This is a testability seam
+      only — production code never overrides it — since
+      `OpenFoodFactsService` has no protocol/DI seam of its own to stub in
+      tests; `MealKitTests`' `StubProductResolver` (an `actor`, for
+      thread-safe call counting) is injected here instead of making live
+      network calls, the same no-live-network rule
+      `FoodFoundationTests`/`PantryKitTests` already follow.
+  - `Sources/MealKit/Models/` — `MealTemplate` (name + default slot +
+    `[TemplateIngredient]`, no nutrition, no date/history — a live recipe,
+    re-resolved on each use), `MealEntry` (date + slot + status + name +
+    optional `templateID` + `[LoggedIngredient]` — one row on the
+    timeline), `TemplateIngredient` (barcode/productName/productBrand/
+    imageURL/amount/`unit: ProductUnit`/usesFromPantry — `unit` isn't
+    broken out in the design doc's summary ER diagram but is required to
+    make `amount` meaningful and to support genuine one-tap logging
+    without re-asking "weight or count?" every time; scoped to this
+    ingredient alone, never shared with `PantryKit`'s per-barcode
+    configuration even for the same barcode), `LoggedIngredient` (same
+    identity fields as `TemplateIngredient` plus `unitLabel`,
+    `gramsResolved`, and `nutritionSnapshot: Nutrition?` — all frozen at
+    logging time, never re-touched afterward: **pantry state is live, meal
+    history is frozen**, meals-feature-design.md §4.3), `MealSlot`
+    (`.breakfast`/`.lunch`/`.dinner`/`.snack`, fixed — not user-configurable
+    — with a `current(at:calendar:)` time-of-day default), `MealStatus`
+    (`.planned`/`.eaten`), and `NutritionCompleteness`/`DayNutritionTotal`/
+    `RangeNutritionSummary`/`ConsumptionStats` (the aggregation/stats
+    result types `MealStore` returns).
+  - `Sources/MealKit/NutritionMath.swift` — `internal` `+`/`/` operators on
+    `FoodFoundation.Nutrition`, used only by this package's aggregation.
+    Kept local to `MealKit` rather than added to `FoodFoundation`, since
+    summing nutrition is a meals-specific concern nothing in `PantryKit`
+    needs.
+  - `Tests/MealKitTests/` — Swift Testing, same conventions as
+    `PantryKitTests`/`FoodFoundationTests`; see `TestSupport.swift`'s
+    `StubProductResolver`/`Fixture` for this package's fixture pattern.
 
 - `Packages/OpenFoodFactsKit/` (local package, product `OpenFoodFactsKit`) —
   all networking and wire-format types for Open Food Facts' APIs:
@@ -241,7 +337,7 @@ dependency" below).
   (dependency direction is one-way: `Foodpoint` app -> `FoodpointKit` ->
   `PantryKit` -> `FoodFoundation` -> `OpenFoodFactsKit`).
 
-All four packages build standalone (`cd Packages/<name> && swift build`),
+All five packages build standalone (`cd Packages/<name> && swift build`),
 and are kept free of any dependency on the app target — that's what makes
 them unit-testable without a simulator.
 
@@ -301,6 +397,12 @@ new tests rather than introducing XCTest.
   whichever package's test target actually owns the affected code — see
   `FoodFoundationTests/NumericInputTests.swift`'s comma-decimal test for
   the pattern (name the test after the bug, not just the feature).
+- `MealKitTests` never makes a live network call: `MealStore` takes a
+  `productResolver` closure (defaulting to `FoodFoundation.ProductLookup.fetch`
+  in production), and tests inject `TestSupport.swift`'s
+  `StubProductResolver` instead — an `actor` so its call count can be read
+  safely from `async` test bodies. Use this same seam rather than adding a
+  new one if `MealStore` grows another network-calling method.
 
 ## Adding a new package dependency
 
