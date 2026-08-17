@@ -16,6 +16,15 @@ struct ProductSearchView: View {
     @State private var isSearching = false
     @State private var errorMessage: String?
     @State private var hasSearched = false
+    /// Barcode of the result currently pushed for nutrition inspection, or
+    /// `nil` when nothing is being inspected. Drives
+    /// `.navigationDestination(item:)` on this view's own `NavigationStack`
+    /// rather than a sheet, so popping back (button or edge swipe) lands on
+    /// this same results list without re-running `search()` — `results`
+    /// and `query` are untouched by the push/pop. Tracked by barcode
+    /// (`Product.id`) rather than the `Product` itself since `Product`
+    /// isn't `Hashable`, which `.navigationDestination(item:)` requires.
+    @State private var inspectedProductID: String?
 
     var body: some View {
         NavigationStack {
@@ -35,13 +44,7 @@ struct ProductSearchView: View {
                     )
                 } else {
                     List(results) { product in
-                        Button {
-                            onSelect(product.id)
-                            dismiss()
-                        } label: {
-                            resultRow(product)
-                        }
-                        .buttonStyle(.plain)
+                        resultRow(product)
                     }
                 }
             }
@@ -54,9 +57,20 @@ struct ProductSearchView: View {
                     Button("Cancel") { dismiss() }
                 }
             }
+            .navigationDestination(item: $inspectedProductID) { barcode in
+                if let product = results.first(where: { $0.id == barcode }) {
+                    SearchResultDetailView(product: product)
+                }
+            }
         }
     }
 
+    /// A plain `HStack` with `.contentShape(Rectangle())` +
+    /// `.onTapGesture` for the row's primary action (select-and-proceed),
+    /// plus a separate `.buttonStyle(.plain)` `Button` for the secondary
+    /// action (push the nutrition detail view) — the same fix for nested
+    /// tappable controls that `PackageVariantsView.row(for:)` uses, applied
+    /// here so the info button doesn't fight the row's own tap gesture.
     private func resultRow(_ product: Product) -> some View {
         HStack(spacing: 12) {
             if let url = product.imageURL {
@@ -77,6 +91,19 @@ struct ProductSearchView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            Spacer()
+            Button {
+                inspectedProductID = product.id
+            } label: {
+                Image(systemName: "info.circle")
+                    .imageScale(.large)
+            }
+            .buttonStyle(.plain)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onSelect(product.id)
+            dismiss()
         }
     }
 

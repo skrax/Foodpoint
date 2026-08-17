@@ -28,7 +28,10 @@ request against a different endpoint, not a variant of the by-barcode
 lookup. Picking a result feeds the exact same save flow a barcode scan
 would; this covers produce and other unlabeled groceries, not things Open
 Food Facts has no listing for at all (a home-cooked dish, still out of
-scope).
+scope). Each result row also has an info button to push a nutrition detail
+view for that candidate (e.g. to tell "Banana (Morrisons)" apart from
+"Banana (fairtrade)") without committing to it — going back returns to the
+same results, query intact.
 
 Each product's quantity can be tracked either as a **count** (e.g. 12
 "bars", 15 "slices") or by **weight** (grams) — configured once per

@@ -90,6 +90,16 @@ dependency" below).
     (text search); a search result is re-resolved by its barcode via
     `fetchFoodData(for:)` rather than reusing the already-fetched product,
     so there's exactly one code path past that point, not two to maintain.
+    Each `ProductSearchView` result row also has a separate `info.circle`
+    button that pushes `Views/SearchResultDetailView.swift` (a thin wrapper
+    around `ProductDetailCard`) to inspect that candidate's nutrition before
+    committing — same nested-tappable-controls fix as
+    `PackageVariantsView.row(for:)` (plain `HStack` +
+    `.contentShape(Rectangle())` + `.onTapGesture` for the row tap, a
+    separate `.buttonStyle(.plain)` `Button` for the info icon), and the
+    push uses `.navigationDestination(item:)` on the search view's own
+    `NavigationStack` rather than a sheet, so popping back doesn't re-run
+    the search.
     `ScannerView` is also presentable as a sheet from elsewhere (currently
     `ItemsView`'s "•••" menu) via its `entryPoint: EntryPoint?` parameter
     (`.scan`/`.search`/`nil`) — non-`nil` auto-opens the matching flow on
