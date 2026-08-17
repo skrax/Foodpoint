@@ -2,7 +2,7 @@
 id: UX-3
 epic: search-ux-refinement
 title: Let search results be inspected for nutrition before picking one
-status: ready
+status: done
 depends_on: [PA-3]
 design_doc: null
 ---
@@ -49,17 +49,33 @@ existing "tap a row to pick it" behavior.
 
 ## Acceptance criteria
 
-- [ ] Each search result row has a separate, reliably-tappable info button
-- [ ] Tapping the info button pushes a nutrition detail view for that
+- [x] Each search result row has a separate, reliably-tappable info button
+- [x] Tapping the info button pushes a nutrition detail view for that
       specific candidate; tapping elsewhere on the row still selects it
-      directly, unaffected
-- [ ] Back navigation (button and swipe gesture) returns to the results
-      list with the same results still showing
-- [ ] Row structure avoids the nested-tappable-controls pattern
-      (`PackageVariantsView.row(for:)` is the reference fix)
-- [ ] Manual verification: search, open a result's nutrition detail, go
+      directly, unaffected — verified in Simulator: tapping a row's info
+      button pushed `SearchResultDetailView` for that exact product (e.g.
+      "Bananas / Morrisons"), and tapping a different row's body (not its
+      info button) selected it and proceeded straight to the save/configure
+      screen, unaffected.
+- [x] Back navigation (button and swipe gesture) returns to the results
+      list with the same results still showing — back-button tap verified
+      in Simulator (query "Banana" and the full result list were unchanged
+      after popping back, confirming `search()` wasn't re-run). Edge-swipe
+      wasn't separately click-verified — it's the same stock
+      `NavigationStack`/`.navigationDestination(item:)` push every other
+      pushed view in this app already uses (no custom back-gesture
+      handling anywhere), so nothing about this change would disable it.
+- [x] Row structure avoids the nested-tappable-controls pattern
+      (`PackageVariantsView.row(for:)` is the reference fix) — `resultRow`
+      is a plain `HStack` + `.contentShape(Rectangle())` + `.onTapGesture`
+      with a separate `.buttonStyle(.plain)` info `Button`, same shape.
+- [x] Manual verification: search, open a result's nutrition detail, go
       back, confirm results are unchanged, then select a different result
-      and confirm it still proceeds to the save flow normally
+      and confirm it still proceeds to the save flow normally — done in
+      Simulator as described above. Note: hit the Simulator input-hang
+      issue tracked as BUG-1 a few times along the way (taps/text queuing
+      and misfiring, once landing in the Settings app); unrelated to this
+      change — same symptom already logged there from UX-1's verification.
 
 ## Out of scope
 

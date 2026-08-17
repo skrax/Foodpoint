@@ -88,7 +88,17 @@ dependency" below).
     scan-only (UX-2): its single acquisition path is the camera
     (`FastFoodBarcodeScanner`) driving `fetchFoodData(for:)`. It has no
     search UI of its own — `Views/ProductSearchView.swift` (text search)
-    is presented directly by `ItemsView`, not by `ScannerView`.
+    is presented directly by `ItemsView`, not by `ScannerView`. Each
+    `ProductSearchView` result row also has a separate `info.circle`
+    button that pushes `Views/SearchResultDetailView.swift` (a thin wrapper
+    around `ProductDetailCard`) to inspect that candidate's nutrition before
+    committing — same nested-tappable-controls fix as
+    `PackageVariantsView.row(for:)` (plain `HStack` +
+    `.contentShape(Rectangle())` + `.onTapGesture` for the row tap, a
+    separate `.buttonStyle(.plain)` `Button` for the info icon), and the
+    push uses `.navigationDestination(item:)` on the search view's own
+    `NavigationStack` rather than a sheet, so popping back doesn't re-run
+    the search.
     `ScannerView` is also presentable as a sheet from elsewhere (currently
     `ItemsView`'s "•••" menu) via its `entryPoint: EntryPoint?` parameter
     (`.scan`/`.resolved(barcode:)`/`nil`) — non-`nil` auto-acts on appear
