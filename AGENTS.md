@@ -84,22 +84,25 @@ dependency" below).
 - `Foodpoint/` (app target) — SwiftUI views and camera glue only, nothing
   else:
   - `ScannerView.swift`, `ContentView.swift`, `FoodpointApp.swift` — the
-    latter injects `AppState.shared` into the environment. `ScannerView`
-    has two acquisition entry points into the same downstream save flow:
-    the camera (`FastFoodBarcodeScanner`) and `Views/ProductSearchView.swift`
-    (text search); a search result is re-resolved by its barcode via
-    `fetchFoodData(for:)` rather than reusing the already-fetched product,
-    so there's exactly one code path past that point, not two to maintain.
+    latter injects `AppState.shared` into the environment. `ScannerView` is
+    scan-only (UX-2): its single acquisition path is the camera
+    (`FastFoodBarcodeScanner`) driving `fetchFoodData(for:)`. It has no
+    search UI of its own — `Views/ProductSearchView.swift` (text search)
+    is presented directly by `ItemsView`, not by `ScannerView`.
     `ScannerView` is also presentable as a sheet from elsewhere (currently
     `ItemsView`'s "•••" menu) via its `entryPoint: EntryPoint?` parameter
-    (`.scan`/`.search`/`nil`) — non-`nil` auto-opens the matching flow on
-    appear (skipping the "No Product Scanned" landing screen, since the
-    caller already expressed intent by picking a menu item) and shows a
-    Cancel button; `nil` is today's Scan-tab-root behavior, unchanged. If
-    you add another entry point into this flow, extend `EntryPoint` rather
-    than duplicating `ScannerView`'s acquire/confirm/configure/save logic
-    elsewhere — that duplication is exactly what this parameter exists to
-    avoid.
+    (`.scan`/`.resolved(barcode:)`/`nil`) — non-`nil` auto-acts on appear
+    (skipping the "No Product Scanned" landing screen, since the caller
+    already expressed intent by picking a menu item) and shows a Cancel
+    button; `nil` is today's Scan-tab-root behavior, unchanged.
+    `.resolved(barcode:)` is how a `ProductSearchView` pick — presented and
+    resolved to a barcode by `ItemsView` itself, via a second, sequenced
+    sheet — still re-enters `ScannerView`'s `fetchFoodData(for:)` rather
+    than reusing the already-fetched product, so there's exactly one code
+    path past that point, not two to maintain. If you add another entry
+    point into this flow, extend `EntryPoint` rather than duplicating `ScannerView`'s
+    acquire/confirm/configure/save logic elsewhere — that duplication is
+    exactly what this parameter exists to avoid.
   - `Views/` — SwiftUI views. Keep bodies declarative; push non-trivial
     logic into `PantryKit` (a new/extended `PantryStore` method, reached
     via `appState.pantry`) or a `FoodFoundation` computed property, rather
