@@ -9,6 +9,16 @@ design_doc: package-architecture.md#6-new-requirement-adding-a-product-without-s
 
 # PA-3 — Add product search (no-barcode acquisition)
 
+**Note:** the *underlying* search capability built here (`OpenFoodFactsService.searchProducts`,
+`ProductLookup.search`, `ProductSearchView`) stands. The *UI placement*
+decisions below — search bolted onto `ScannerView` next to "Scan Food
+Barcode" — were revised after review; see
+[epic-2-search-ux-refinement](../epic-2-search-ux-refinement/) for the
+follow-up work (search moves to an Items-view menu, removed from
+`ScannerView`, results screen reworked with nutrition inspection). Left
+as-written below since it accurately records what was actually built and
+verified at the time.
+
 ## Story
 
 As a user, I want to find a product by name when it has no barcode to

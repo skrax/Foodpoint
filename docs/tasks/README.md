@@ -41,6 +41,10 @@ graph TD
     PA2 --> PA4["PA-4 Extract PantryKit"]
     PA4 --> PA5["PA-5 Slim FoodpointKit"]
 
+    PA3 --> UX1["UX-1 Items-view acquisition menu"]
+    UX1 --> UX2["UX-2 Remove search from ScannerView"]
+    PA3 --> UX3["UX-3 Search results: nutrition inspection"]
+
     PA5 --> MK1["MK-1 MealKit model + aggregation"]
     PA3 --> MK1
     MK1 --> MK2["MK-2 Composition editor"]
@@ -66,33 +70,50 @@ Prerequisite for meals; no new user-facing behavior. See
 | [PA-4](epic-1-package-architecture/PA-4-extract-pantry-kit.md) | Extract PantryKit | done | PA-2 |
 | [PA-5](epic-1-package-architecture/PA-5-slim-foodpoint-kit.md) | Slim FoodpointKit to a composition root | done | PA-4 |
 
-## Epic 2 — Meals Feature
+## Epic 2 — Search & Acquisition UX Refinement
 
-See [meals-feature-design.md](../meals-feature-design.md). Depends on
-Epic 1 being fully done (PA-5) before it can start in earnest, though
-MK-1 only strictly needs PA-5 + PA-3.
+Direct follow-up feedback on PA-3's UI placement, not a package-structure
+change — no companion design doc, scoped straight from review. Search
+moves out of `ScannerView` into a proper Items-view entry point, and the
+results screen gains a way to inspect nutrition before picking a
+candidate. Sequenced before Epic 3 (Meals) since MealKit's own ingredient
+picker (MK-2) will reuse whatever `ProductSearchView` looks like after
+this lands.
 
 | ID | Title | Status | Depends on |
 |----|-------|--------|-----------|
-| [MK-1](epic-2-meals-feature/MK-1-mealkit-model-and-aggregation.md) | MealKit core model and aggregation | ready | PA-5, PA-3 |
-| [MK-2](epic-2-meals-feature/MK-2-meal-composition-editor.md) | Meal composition editor and ingredient acquisition | backlog | MK-1, PA-3 |
-| [MK-3](epic-2-meals-feature/MK-3-manual-logging-and-orchestration.md) | Manual logging loop and pantry orchestration | backlog | MK-1, MK-2, PA-5 |
-| [MK-4](epic-2-meals-feature/MK-4-templates-and-one-tap-logging.md) | Templates and one-tap logging | backlog | MK-3 |
-| [MK-5](epic-2-meals-feature/MK-5-planning-and-tick-off.md) | Planning and tick-off | backlog | MK-3 |
-| [MK-6](epic-2-meals-feature/MK-6-range-summary-and-consumption.md) | Range summary and consumption surfaces | backlog | MK-3 |
+| [UX-1](epic-2-search-ux-refinement/UX-1-items-view-acquisition-menu.md) | Add an acquisition menu to ItemsView (scan or search) | ready | PA-3 |
+| [UX-2](epic-2-search-ux-refinement/UX-2-remove-search-from-scanner.md) | Remove the search entry point from ScannerView | backlog | UX-1 |
+| [UX-3](epic-2-search-ux-refinement/UX-3-search-results-nutrition-inspection.md) | Let search results be inspected for nutrition before picking one | ready | PA-3 |
+
+## Epic 3 — Meals Feature
+
+See [meals-feature-design.md](../meals-feature-design.md). Depends on
+Epic 1 being fully done (PA-5) before it can start in earnest, though
+MK-1 only strictly needs PA-5 + PA-3 — **not** Epic 2, though MK-2's
+ingredient-search source will likely want to reuse Epic 2's reworked
+`ProductSearchView`, so landing Epic 2 first avoids MK-2 building against
+a UI that's about to change underneath it.
+
+| ID | Title | Status | Depends on |
+|----|-------|--------|-----------|
+| [MK-1](epic-3-meals-feature/MK-1-mealkit-model-and-aggregation.md) | MealKit core model and aggregation | ready | PA-5, PA-3 |
+| [MK-2](epic-3-meals-feature/MK-2-meal-composition-editor.md) | Meal composition editor and ingredient acquisition | backlog | MK-1, PA-3 |
+| [MK-3](epic-3-meals-feature/MK-3-manual-logging-and-orchestration.md) | Manual logging loop and pantry orchestration | backlog | MK-1, MK-2, PA-5 |
+| [MK-4](epic-3-meals-feature/MK-4-templates-and-one-tap-logging.md) | Templates and one-tap logging | backlog | MK-3 |
+| [MK-5](epic-3-meals-feature/MK-5-planning-and-tick-off.md) | Planning and tick-off | backlog | MK-3 |
+| [MK-6](epic-3-meals-feature/MK-6-range-summary-and-consumption.md) | Range summary and consumption surfaces | backlog | MK-3 |
 
 ## What's next
 
-**Epic 1 (Package Architecture Restructuring) is fully done.** The app
-builds on the full `OpenFoodFactsKit → FoodFoundation → PantryKit →
-FoodpointKit` split, plus the new search-a-licious-backed "Search by Name"
-path (PA-3) alongside barcode scanning. Two things still need confirming
-on the physical device (both builds are installed there): the full
+**Epic 1 is fully done.** Two things from it still need confirming on the
+physical device (both builds are installed there): the full
 scan→save→adjust walkthrough from PA-5, and tapping a search result
-through to a save from PA-3 — the Simulator could verify search itself
-against the live API, but not the tap-through, due to a Simulator input
-issue unrelated to the app.
+through to a save from PA-3.
 
-**MK-1 (MealKit core model and aggregation) is ready** — the first task of
-Epic 2. Nothing else in Epic 2 can start before it; MK-2 depends on it
-directly, and MK-3 through MK-6 all sit downstream of MK-2/MK-3.
+**Epic 2 is new, from direct feedback on PA-3's UI.** **UX-1** and **UX-3**
+are both unblocked and independent of each other. **UX-2** waits on UX-1
+(don't remove the old search entry point before the new one exists).
+MK-1 (Epic 3) is technically unblocked already, but consider landing
+Epic 2 first — MK-2 will likely reuse `ProductSearchView`, and building
+Meals against a search UI that's about to be reworked risks redoing work.
