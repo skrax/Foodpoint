@@ -62,14 +62,53 @@ public final class MealStore {
 
     // MARK: - Ingredient acquisition (immediate snapshot)
 
+    /// Pure, synchronous core of `resolveIngredient`/`instantiate`: given a
+    /// product's identity/nutrition (already fetched, from wherever) plus an
+    /// amount and unit, computes the frozen `LoggedIngredient` fields —
+    /// `grams = amount × unit.gramsPerUnit` (meals-feature-design.md §4.6),
+    /// and `nutritionSnapshot` scaled from `nutritionPer100g`, or `nil` when
+    /// there's no usable data (`Nutrition.isEffectivelyEmpty`) rather than a
+    /// silent zero.
+    ///
+    /// Extracted as its own testable, network-free function (rather than
+    /// inlined separately in `resolveIngredient` and `instantiate`, which
+    /// now both call this) specifically so the composition editor (MK-2,
+    /// `Foodpoint/Views/MealCompositionEditorView.swift`) can rebuild a
+    /// `LoggedIngredient` for a locally-edited amount — e.g. the user
+    /// changing "2 slices" to "3 slices" on a row already added — without
+    /// re-fetching from Open Food Facts. Pair with
+    /// `LoggedIngredient.impliedUnit`/`.impliedNutritionPer100g` to
+    /// round-trip an already-resolved ingredient back through this function
+    /// for a new amount.
+    public static func makeIngredient(
+        barcode: String,
+        productName: String?,
+        productBrand: String?,
+        imageURL: URL?,
+        nutritionPer100g: Nutrition?,
+        amount: Double,
+        unit: ProductUnit,
+        usesFromPantry: Bool = true
+    ) -> LoggedIngredient {
+        let grams = amount * (unit.gramsPerUnit ?? 1)
+        let nutrition = nutritionPer100g.flatMap { $0.isEffectivelyEmpty ? nil : $0.scaled(by: grams / 100) }
+        return LoggedIngredient(
+            barcode: barcode,
+            productName: productName,
+            productBrand: productBrand,
+            imageURL: imageURL,
+            amount: amount,
+            unitLabel: unit.label,
+            gramsResolved: grams,
+            nutritionSnapshot: nutrition,
+            usesFromPantry: usesFromPantry
+        )
+    }
+
     /// Resolves `barcode` and snapshots everything a `LoggedIngredient`
     /// needs onto it immediately — one `productResolver` call, right now,
-    /// not deferred. `gramsResolved`/`nutritionSnapshot` are computed via
-    /// the `grams = amount × unit.gramsPerUnit` formula
-    /// (meals-feature-design.md §4.6); a `nil`/zero `nutritionSnapshot`
-    /// means the product had no usable nutrition data
-    /// (`Nutrition.isEffectivelyEmpty`), which aggregation reports as a
-    /// completeness gap rather than a silent zero.
+    /// not deferred. See `makeIngredient` for the grams/nutrition
+    /// computation itself, shared with `instantiate`.
     ///
     /// Once this returns, the ingredient is fully self-sufficient: browsing
     /// it later (a "recently used" list, a template, a logged entry) reads
@@ -81,17 +120,14 @@ public final class MealStore {
         usesFromPantry: Bool = true
     ) async throws -> LoggedIngredient {
         let product = try await productResolver(barcode)
-        let grams = amount * (unit.gramsPerUnit ?? 1)
-        let nutrition = product.nutrition.flatMap { $0.isEffectivelyEmpty ? nil : $0.scaled(by: grams / 100) }
-        return LoggedIngredient(
+        return Self.makeIngredient(
             barcode: barcode,
             productName: product.name,
             productBrand: product.brand,
             imageURL: product.imageURL,
+            nutritionPer100g: product.nutrition,
             amount: amount,
-            unitLabel: unit.label,
-            gramsResolved: grams,
-            nutritionSnapshot: nutrition,
+            unit: unit,
             usesFromPantry: usesFromPantry
         )
     }
@@ -139,18 +175,15 @@ public final class MealStore {
         ingredients.reserveCapacity(template.ingredients.count)
         for templateIngredient in template.ingredients {
             let product = try await productResolver(templateIngredient.barcode)
-            let grams = templateIngredient.amount * (templateIngredient.unit.gramsPerUnit ?? 1)
-            let nutrition = product.nutrition.flatMap { $0.isEffectivelyEmpty ? nil : $0.scaled(by: grams / 100) }
             ingredients.append(
-                LoggedIngredient(
+                Self.makeIngredient(
                     barcode: templateIngredient.barcode,
                     productName: product.name,
                     productBrand: product.brand,
                     imageURL: product.imageURL,
+                    nutritionPer100g: product.nutrition,
                     amount: templateIngredient.amount,
-                    unitLabel: templateIngredient.unit.label,
-                    gramsResolved: grams,
-                    nutritionSnapshot: nutrition,
+                    unit: templateIngredient.unit,
                     usesFromPantry: templateIngredient.usesFromPantry
                 )
             )
@@ -297,7 +330,14 @@ public final class MealStore {
         return RangeNutritionSummary(days: days, averageEatenPerDay: average)
     }
 
-    private static func completeness(for ingredients: [LoggedIngredient]) -> NutritionCompleteness {
+    /// Sums `nutritionSnapshot` across `ingredients`, reporting how many had
+    /// none rather than silently treating a missing one as zero
+    /// (meals-feature-design.md §8.2). Used internally by `dayTotal`, and
+    /// public so the composition editor's (MK-2) running footer can compute
+    /// the same completeness signal live, over whatever's currently in the
+    /// editor, without duplicating this logic or requiring a `MealEntry` to
+    /// exist yet.
+    public static func completeness(for ingredients: [LoggedIngredient]) -> NutritionCompleteness {
         var total = Nutrition.zero
         var missing = 0
         for ingredient in ingredients {
@@ -308,6 +348,47 @@ public final class MealStore {
             }
         }
         return NutritionCompleteness(total: total, consideredCount: ingredients.count, missingCount: missing)
+    }
+
+    // MARK: - Ingredient history (no network call)
+
+    /// Distinct ingredients this store has ever logged or planned, one row
+    /// per barcode, most-recently-used entry first — the data behind the
+    /// "from history" ingredient source (meals-feature-design.md §6.1 #2).
+    /// Reads straight off already-snapshotted `LoggedIngredient` fields
+    /// across `entries`, so — unlike scan/search — this never makes a
+    /// network call; that's the entire point of this acquisition source.
+    public func recentlyUsedIngredients() -> [LoggedIngredient] {
+        var seenBarcodes = Set<String>()
+        var result: [LoggedIngredient] = []
+        for entry in entries.sorted(by: { $0.date > $1.date }) {
+            for ingredient in entry.ingredients {
+                guard seenBarcodes.insert(ingredient.barcode).inserted else { continue }
+                result.append(ingredient)
+            }
+        }
+        return result
+    }
+
+    /// The `ProductUnit` most recently used for `barcode` across this
+    /// store's own history — a logged ingredient's `impliedUnit` if one
+    /// exists (most recent entry first), else a template ingredient's
+    /// `unit` if the barcode only appears in a template, else `nil`.
+    ///
+    /// `nil` means this barcode has never been used as a MealKit ingredient
+    /// before, which is exactly the composition editor's (MK-2) signal to
+    /// prompt its minimal per-ingredient unit setup
+    /// (meals-feature-design.md §6.3) rather than silently guessing — and
+    /// deliberately never falls back to PantryKit's own unit config for the
+    /// same barcode, even if one exists, per this package's zero-dependency
+    /// rule on `PantryKit`.
+    public func lastKnownUnit(forBarcode barcode: String) -> ProductUnit? {
+        for entry in entries.sorted(by: { $0.date > $1.date }) {
+            if let ingredient = entry.ingredients.first(where: { $0.barcode == barcode }) {
+                return ingredient.impliedUnit
+            }
+        }
+        return templates.flatMap(\.ingredients).first(where: { $0.barcode == barcode })?.unit
     }
 
     // MARK: - Consumption stats
