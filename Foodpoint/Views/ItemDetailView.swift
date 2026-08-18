@@ -6,6 +6,15 @@ import FoodpointKit
 /// managing (renaming/resizing/adding/deleting) the barcode's variants.
 /// Auto-dismisses if the item is removed (quantity driven to 0) while this
 /// view is open.
+///
+/// **Consumption section (MK-6, meals-feature-design.md §9):** last eaten,
+/// times eaten, and total amount over the last 30 days, read from
+/// `appState.meals.consumptionStats(barcode:from:to:)` keyed by this item's
+/// barcode (`itemID`). This is the one place `ItemDetailView` — a `PantryKit`
+/// view — reaches into `appState.meals`; `MealKit` itself never reaches back
+/// into `PantryKit`, so this cross-referencing-by-barcode happens here, in
+/// glue code, exactly like the "from pantry" ingredient source does in the
+/// other direction (package-architecture.md §3.5).
 struct ItemDetailView: View {
     let itemID: String
     @Environment(AppState.self) private var appState
@@ -31,6 +40,8 @@ struct ItemDetailView: View {
                     }
 
                     quantitySection(for: item)
+
+                    consumptionSection(for: item)
 
                     HStack {
                         Button {
@@ -104,6 +115,58 @@ struct ItemDetailView: View {
             Text(item.unit.label)
                 .foregroundStyle(.secondary)
         }
+        .padding(.horizontal)
+    }
+
+    /// Consumption stats for this item's barcode over the trailing 30 days
+    /// (meals-feature-design.md §9) — counts every logged `.eaten` ingredient
+    /// row regardless of that entry's "Use from pantry" toggle, since "did I
+    /// eat this" is a different question from "did it come out of my shelf."
+    private func consumptionStats(for item: FoodItem) -> ConsumptionStats {
+        let end = Date()
+        let start = Calendar.current.date(byAdding: .day, value: -29, to: Calendar.current.startOfDay(for: end)) ?? end
+        return appState.meals.consumptionStats(barcode: item.id, from: start, to: end)
+    }
+
+    /// The unit label `MealKit`'s own logged ingredients for this barcode
+    /// actually used, most-recent first, since `ConsumptionStats.totalAmount`
+    /// is summed in whatever unit each meal-log row was logged in — which
+    /// isn't guaranteed to match this item's *current* pantry unit (the two
+    /// are independently configured, per meals-feature-design.md §6.3).
+    /// Falls back to the pantry's own unit label if this barcode has never
+    /// been logged as a meal ingredient, purely so the tile always shows
+    /// some label rather than none.
+    private func consumptionUnitLabel(for item: FoodItem) -> String {
+        appState.meals.recentlyUsedIngredients().first { $0.barcode == item.id }?.unitLabel ?? item.unit.label
+    }
+
+    /// "Consumption" section: last eaten, times eaten, and total amount over
+    /// the last 30 days. Shows a plain "not eaten" note rather than zeroed
+    /// tiles when nothing was logged, so an unused product doesn't look like
+    /// a data gap.
+    private func consumptionSection(for item: FoodItem) -> some View {
+        let stats = consumptionStats(for: item)
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Consumption (Last 30 Days)")
+                .font(.caption)
+                .bold()
+                .foregroundStyle(.secondary)
+
+            if stats.timesEaten == 0 {
+                Text("Not eaten in the last 30 days.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                HStack {
+                    MetricView(label: "Times Eaten", value: "\(stats.timesEaten)")
+                    MetricView(label: "Total Amount", value: "\(formatted(stats.totalAmount)) \(consumptionUnitLabel(for: item))")
+                    MetricView(label: "Last Eaten", value: stats.lastEatenDate.map { $0.formatted(.dateTime.month(.abbreviated).day()) } ?? "—")
+                }
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
         .padding(.horizontal)
     }
 

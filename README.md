@@ -107,6 +107,33 @@ of it had fully removed. Editing a product's nutrition later never rewrites
 an already-eaten meal's numbers: pantry state is live, meal history is a
 frozen snapshot.
 
+The Meals tab also shows a day totals header above the entry list: eaten
+calories/macros with a completeness signal ("≥ 340 kcal" when some
+ingredient has no nutrition data), plus planned calories as a separate
+"planned +X" line whenever there's anything planned for the day — eaten and
+planned are never summed into one figure. A leading toolbar menu opens a
+week/month **range summary** (daily totals, an average, and a purely
+descriptive trend — no goals or targets) and a **most-consumed** list
+ranking every product eaten in the last 30 days. Tapping a meal entry pushes
+its detail screen, which — alongside its ingredients and nutrition total —
+shows a **nutrition-source provenance mix**: how much of that meal's total
+came from Open Food Facts data versus a hand-entered "Custom" nutrition
+variant. `ItemDetailView` (an item's detail screen in the Items tab) gained
+a matching **Consumption** section: last eaten, times eaten, and total
+amount over the last 30 days for that product, read by cross-referencing
+`appState.meals` by barcode from the pantry-side view (`MealKit` itself
+still never references `PantryKit`).
+
+With this range-summary/consumption work (MK-6) landed alongside the
+day-timeline/templates/planning work built in parallel with it (MK-4/MK-5),
+the meals feature reaches every bare-level capability
+meals-feature-design.md §2 named: composing meals from items, aggregating
+nutrition over a timespan, memorizing meals for one-tap logging, planning
+ahead, tracking which products get consumed, and adding barcode-less
+ingredients by search. Nutrition goals/targets and a shopping list stay
+deliberately deferred (design doc §11) — this is "feature-complete against
+the bare-level scope," not "done."
+
 This is an early solo prototype — expect rough edges and missing features.
 
 ## Stack
@@ -176,12 +203,20 @@ Foodpoint/
                         barcode to ScannerView via a second, sequenced sheet)
     ProductSearchView.swift  Text search sheet; picking a result re-resolves
                               it by barcode through the same path a scan uses
+    ItemDetailView.swift  An item's detail screen (nutrition, quantity,
+                        Package Sizes/Nutrition management) plus a
+                        Consumption section (MK-6): last eaten, times
+                        eaten, total amount over the last 30 days, read
+                        from appState.meals by barcode
     MealsView.swift     Meals tab root; thin NavigationStack shell hosting
                         DayTimelineView (the tab's actual content)
     DayTimelineView.swift  The Meals tab home: day timeline with date
                         navigation, entries grouped by MealSlot, and a
-                        day summary (eaten vs. planned, kept separate). A
-                        "+" menu picks a slot then opens
+                        DayTotalsHeaderView (eaten/planned totals, kept
+                        separate, plus a completeness signal). A leading
+                        toolbar menu reaches RangeSummaryView and
+                        MostConsumedView; tapping a row pushes
+                        MealDetailView. A "+" menu picks a slot then opens
                         MealCompositionEditorView; composing for today
                         logs immediately (plan + appState.markMealEaten,
                         decrementing pantry for "Use from pantry"
@@ -202,6 +237,19 @@ Foodpoint/
     MealIngredientPantryPickerView.swift, MealIngredientHistoryPickerView.swift,
     MealIngredientUnitSetupView.swift  The four sources' picker sheets used
                         by the composition editor
+    DayTotalsHeaderView.swift  (MK-6) Day totals header: eaten
+                        calories/macros with a completeness signal, plus a
+                        "planned +X" projection when anything's planned for
+                        the day — reads appState.meals.dayTotal(for:)
+    RangeSummaryView.swift  (MK-6) Week/month range summary: daily totals,
+                        an average, and a purely descriptive trend, over
+                        appState.meals.rangeSummary(from:to:)
+    MostConsumedView.swift  (MK-6) Most-consumed-products list across all
+                        meals in the last 30 days, over
+                        appState.meals.mostConsumed(from:to:)
+    MealDetailView.swift  (MK-6) One meal entry's ingredients, nutrition
+                        total, and nutrition-source provenance mix (Open
+                        Food Facts vs. Custom)
   Scanners/             Barcode scanning (AVFoundation-backed UIViewRepresentable)
 
 Packages/
@@ -240,8 +288,9 @@ Packages/
                             directly as eaten, plan for later, markEaten,
                             undo); day/range nutrition aggregation with
                             completeness reporting; consumption stats;
-                            makeIngredient (pure grams/nutrition math,
-                            shared with the composition editor's live
+                            provenanceMix (MK-6, Open Food Facts vs.
+                            Custom); makeIngredient (pure grams/nutrition
+                            math, shared with the composition editor's live
                             amount editing) and recentlyUsedIngredients/
                             lastKnownUnit (the "from history" source);
                             entries(on:)/entriesGroupedBySlot(on:) (the day
@@ -253,9 +302,11 @@ Packages/
                             LoggedIngredient (+ impliedUnit/
                             impliedNutritionPer100g, for editing a
                             historical ingredient's amount with no network
-                            call), MealSlot, MealStatus,
+                            call; + nutritionSource, MK-6, frozen alongside
+                            nutritionSnapshot), MealSlot, MealStatus,
                             NutritionCompleteness/DayNutritionTotal/
-                            RangeNutritionSummary/ConsumptionStats
+                            RangeNutritionSummary (+ caloricTrend, MK-6)/
+                            ConsumptionStats/NutritionProvenanceMix (MK-6)
     Tests/MealKitTests/    Swift Testing unit tests
 
   FoodFoundation/        Local Swift package: shared domain types and product

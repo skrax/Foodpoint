@@ -312,6 +312,7 @@ struct MealCompositionEditorView: View {
             nutritionPer100g: current.impliedNutritionPer100g,
             amount: amount,
             unit: current.impliedUnit,
+            nutritionSource: current.nutritionSource ?? .openFoodFacts,
             usesFromPantry: current.usesFromPantry
         )
     }
@@ -321,6 +322,15 @@ struct MealCompositionEditorView: View {
     /// Source #1: pantry pick. The pantry already knows this barcode's
     /// `ProductUnit`, so there's no unit setup to ask about — the row
     /// starts at amount `1` in that unit, ready to be adjusted.
+    ///
+    /// This is the one ingredient source that can produce a `.custom`
+    /// `nutritionSource` (meals-feature-design.md §8.3): `MealKit` itself
+    /// has no notion of "custom" nutrition, since it never depends on
+    /// `PantryKit`, so the barcode's currently-default variant source is
+    /// read here, at the app layer, and passed through explicitly —
+    /// `appState.pantry.nutritionConfigs` is exactly the same lookup
+    /// `ItemDetailView`/`ProductDetailCard` already use for their own source
+    /// badge.
     private func addFromPantry(_ item: FoodItem) {
         let ingredient = MealStore.makeIngredient(
             barcode: item.product.id,
@@ -329,15 +339,16 @@ struct MealCompositionEditorView: View {
             imageURL: item.product.imageURL,
             nutritionPer100g: item.product.nutrition,
             amount: 1,
-            unit: item.unit
+            unit: item.unit,
+            nutritionSource: appState.pantry.nutritionConfigs[item.product.id]?.source ?? .openFoodFacts
         )
         rows.append(ComposerRow(ingredient: ingredient, amountText: "1"))
     }
 
     /// Source #2: history pick. Reuses the historical ingredient's amount
-    /// and (frozen) fields as-is for the new row's starting point; a fresh
-    /// `id` keeps it independent from the historical record it was copied
-    /// from.
+    /// and (frozen) fields — including its `nutritionSource` — as-is for the
+    /// new row's starting point; a fresh `id` keeps it independent from the
+    /// historical record it was copied from.
     private func addFromHistory(_ historical: LoggedIngredient) {
         let ingredient = LoggedIngredient(
             barcode: historical.barcode,
@@ -348,6 +359,7 @@ struct MealCompositionEditorView: View {
             unitLabel: historical.unitLabel,
             gramsResolved: historical.gramsResolved,
             nutritionSnapshot: historical.nutritionSnapshot,
+            nutritionSource: historical.nutritionSource,
             usesFromPantry: true
         )
         rows.append(ComposerRow(ingredient: ingredient, amountText: formattedAmount(historical.amount)))

@@ -69,6 +69,79 @@ public struct RangeNutritionSummary: Equatable {
         self.days = days
         self.averageEatenPerDay = averageEatenPerDay
     }
+
+    /// A simple, *description*-only direction for eaten calories across this
+    /// range — the "simple trend" meals-feature-design.md §8.1 asks for,
+    /// deliberately not an evaluation against any goal (no goals/targets
+    /// exist yet, §11's deferral). Compares the mean eaten `energyKcal100g`
+    /// across the first half of `days` against the second half; `.flat` for
+    /// fewer than two days (nothing to compare), or when the two halves
+    /// differ by less than 5% — small day-to-day noise shouldn't read as a
+    /// trend.
+    public var caloricTrend: NutritionTrend {
+        guard days.count >= 2 else { return .flat }
+        let midpoint = days.count / 2
+        let firstHalf = days[..<midpoint]
+        let secondHalf = days[midpoint...]
+        let firstAverage = firstHalf.reduce(0.0) { $0 + ($1.eaten.total.energyKcal100g ?? 0) } / Double(firstHalf.count)
+        let secondAverage = secondHalf.reduce(0.0) { $0 + ($1.eaten.total.energyKcal100g ?? 0) } / Double(secondHalf.count)
+        guard firstAverage > 0 else { return secondAverage > 0 ? .increasing : .flat }
+        let relativeChange = (secondAverage - firstAverage) / firstAverage
+        if relativeChange > 0.05 { return .increasing }
+        if relativeChange < -0.05 { return .decreasing }
+        return .flat
+    }
+}
+
+/// `RangeNutritionSummary.caloricTrend`'s result — a plain direction, not a
+/// judgment. Deliberately has no "good"/"bad" framing: this feature
+/// describes eating patterns, it doesn't evaluate them against a goal
+/// (meals-feature-design.md §11 defers goals/targets entirely).
+public enum NutritionTrend: Equatable {
+    /// The second half of the range averaged meaningfully more eaten
+    /// calories per day than the first half.
+    case increasing
+    /// The second half averaged meaningfully less.
+    case decreasing
+    /// No meaningful difference between the two halves (or too few days to
+    /// compare at all).
+    case flat
+}
+
+/// How a set of logged ingredients' nutrition data is provenanced — Open
+/// Food Facts vs. a user's own "Custom" entries
+/// (`FoodFoundation.NutritionSource`, already badged this way throughout the
+/// app) — so a meal built mostly on hand-entered numbers is distinguishable
+/// from one built on Open Food Facts data (meals-feature-design.md §8.3).
+/// Produced by `MealStore.provenanceMix(for:)`.
+public struct NutritionProvenanceMix: Equatable {
+    /// Ingredients with real nutrition data sourced from Open Food Facts.
+    public var openFoodFactsCount: Int
+    /// Ingredients with real nutrition data the user entered by hand.
+    public var customCount: Int
+    /// Ingredients with real nutrition data whose source wasn't recorded —
+    /// e.g. logged before `LoggedIngredient.nutritionSource` existed.
+    /// Surfaced separately rather than folded into either count above, so
+    /// the mix never claims more certainty about provenance than it has.
+    public var unknownCount: Int
+    /// Ingredients with no nutrition data at all. Provenance is moot for
+    /// these — `NutritionCompleteness.missingCount` already reports this
+    /// gap; this field exists so `openFoodFactsCount + customCount +
+    /// unknownCount + noDataCount` always accounts for every ingredient
+    /// considered.
+    public var noDataCount: Int
+
+    public init(openFoodFactsCount: Int, customCount: Int, unknownCount: Int, noDataCount: Int) {
+        self.openFoodFactsCount = openFoodFactsCount
+        self.customCount = customCount
+        self.unknownCount = unknownCount
+        self.noDataCount = noDataCount
+    }
+
+    /// Ingredients with real nutrition data and a known source — the
+    /// denominator for describing the provenance mix (e.g. "3 of 4 from
+    /// Open Food Facts").
+    public var consideredCount: Int { openFoodFactsCount + customCount }
 }
 
 /// How often and how much of one product has been eaten over a date range —

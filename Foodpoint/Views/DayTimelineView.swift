@@ -33,6 +33,22 @@ import FoodpointKit
 /// Planned rows are rendered with a visible outline to distinguish them
 /// from filled eaten rows, per §10's "planned entries render visually
 /// distinct (outlined rather than filled)."
+///
+/// **MK-6 additions**, folded in here rather than left on the flat-list
+/// placeholder MK-6 was written against in parallel: the day totals header
+/// is `DayTotalsHeaderView` (richer than this view's own first-cut
+/// eaten/planned line — full macro breakdown plus a completeness note,
+/// reading off the same `MealStore.dayTotal(for:)`), a leading toolbar menu
+/// reaches `RangeSummaryView` (week/month) and `MostConsumedView`, and each
+/// row now pushes `MealDetailView` for that entry's ingredients and
+/// nutrition-source provenance mix. The row push uses
+/// `.navigationDestination(item:)` keyed on the entry's `id` (looked up live
+/// against `appState.meals.entries`, rather than requiring `MealEntry` to be
+/// `Hashable`) with the row's own `.contentShape(Rectangle())` +
+/// `.onTapGesture` — the same nested-tappable-controls-safe pattern already
+/// established by `PackageVariantsView.row(for:)` and reused by UX-3's
+/// search-result rows — so the row push and the planned-row's separate
+/// tick-off `Button` don't conflict.
 struct DayTimelineView: View {
     @Environment(AppState.self) private var appState
 
@@ -49,6 +65,11 @@ struct DayTimelineView: View {
 
     @State private var insufficientStockMessage: String?
     @State private var isShowingInsufficientStockAlert = false
+
+    /// The id of the entry currently pushed to `MealDetailView`, or `nil`
+    /// when the timeline itself is on screen. Keyed on `id` rather than the
+    /// entry itself since `MealEntry` isn't `Hashable`.
+    @State private var selectedEntryID: MealEntry.ID?
 
     private var calendar: Calendar { .current }
 
@@ -68,7 +89,8 @@ struct DayTimelineView: View {
         VStack(spacing: 0) {
             dateNavigationHeader
             Divider()
-            daySummaryHeader
+            DayTotalsHeaderView(date: selectedDate)
+                .padding(.vertical, 6)
             Divider()
 
             if hasAnyEntries {
@@ -103,6 +125,9 @@ struct DayTimelineView: View {
         }
         .navigationTitle("Meals")
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                summaryMenu
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 addMealMenu
             }
@@ -111,6 +136,11 @@ struct DayTimelineView: View {
             MealCompositionEditorView { ingredients in
                 guard !ingredients.isEmpty else { return }
                 addEntry(ingredients: ingredients, slot: pendingSlot)
+            }
+        }
+        .navigationDestination(item: $selectedEntryID) { entryID in
+            if let entry = appState.meals.entries.first(where: { $0.id == entryID }) {
+                MealDetailView(entry: entry)
             }
         }
         .alert("Insufficient Stock", isPresented: $isShowingInsufficientStockAlert, presenting: insufficientStockMessage) { _ in
@@ -172,25 +202,23 @@ struct DayTimelineView: View {
         selectedDate = newDate
     }
 
-    // MARK: - Day summary header (§8.1: eaten and planned kept separate)
+    // MARK: - Summary menu (MK-6: range summary, most consumed)
 
-    private var daySummaryHeader: some View {
-        let total = appState.meals.dayTotal(for: selectedDate)
-        return HStack {
-            MetricView(label: "Eaten", value: kcalText(total.eaten))
-            if total.planned.consideredCount > 0 {
-                MetricView(label: "Planned", value: "+\(kcalText(total.planned))")
+    private var summaryMenu: some View {
+        Menu {
+            NavigationLink {
+                RangeSummaryView()
+            } label: {
+                Label("Range Summary", systemImage: "calendar")
             }
+            NavigationLink {
+                MostConsumedView()
+            } label: {
+                Label("Most Consumed", systemImage: "chart.bar")
+            }
+        } label: {
+            Image(systemName: "chart.bar.doc.horizontal")
         }
-        .padding(.horizontal)
-        .padding(.vertical, 6)
-    }
-
-    /// "≥ 340 kcal" when incomplete, matching the composition editor's own
-    /// completeness-honesty phrasing (meals-feature-design.md §8.2).
-    private func kcalText(_ completeness: NutritionCompleteness) -> String {
-        let kcal = (completeness.total.energyKcal100g ?? 0).formatted(.number.precision(.fractionLength(0...0)))
-        return completeness.isComplete ? "\(kcal) kcal" : "≥ \(kcal) kcal"
     }
 
     // MARK: - Adding an entry
@@ -249,6 +277,12 @@ struct DayTimelineView: View {
 
     // MARK: - Row UI
 
+    /// A plain `HStack` + `.contentShape(Rectangle())` + `.onTapGesture` for
+    /// the row's primary action (push `MealDetailView`), with the planned
+    /// row's tick-off control kept a separate `.buttonStyle(.plain)`
+    /// `Button` — the nested-tappable-controls-safe shape this codebase
+    /// already established in `PackageVariantsView.row(for:)` and reused by
+    /// UX-3, rather than nesting a `Button` inside a `NavigationLink`.
     private func entryRow(_ entry: MealEntry) -> some View {
         let completeness = MealStore.completeness(for: entry.ingredients)
         let kcal = (completeness.total.energyKcal100g ?? 0).formatted(.number.precision(.fractionLength(0...0)))
@@ -291,6 +325,10 @@ struct DayTimelineView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(entry.status == .planned ? Color.accentColor.opacity(0.6) : Color.clear, lineWidth: 1.5)
         )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            selectedEntryID = entry.id
+        }
     }
 
     private func formattedAmount(_ amount: Double) -> String {

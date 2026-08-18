@@ -80,6 +80,14 @@ public final class MealStore {
     /// `LoggedIngredient.impliedUnit`/`.impliedNutritionPer100g` to
     /// round-trip an already-resolved ingredient back through this function
     /// for a new amount.
+    ///
+    /// `nutritionSource` defaults to `.openFoodFacts`, since every
+    /// acquisition path that ends up here except one goes through
+    /// `ProductResolver` (`FoodFoundation.ProductLookup.fetch`), which only
+    /// ever returns Open Food Facts data — the sole exception is the "from
+    /// pantry" ingredient source (§6.1 #1), composed at the app layer, which
+    /// passes the barcode's actual currently-default source explicitly
+    /// (meals-feature-design.md §8.3) since that could be `.custom`.
     public static func makeIngredient(
         barcode: String,
         productName: String?,
@@ -88,6 +96,7 @@ public final class MealStore {
         nutritionPer100g: Nutrition?,
         amount: Double,
         unit: ProductUnit,
+        nutritionSource: NutritionSource = .openFoodFacts,
         usesFromPantry: Bool = true
     ) -> LoggedIngredient {
         let grams = amount * (unit.gramsPerUnit ?? 1)
@@ -101,6 +110,7 @@ public final class MealStore {
             unitLabel: unit.label,
             gramsResolved: grams,
             nutritionSnapshot: nutrition,
+            nutritionSource: nutrition != nil ? nutritionSource : nil,
             usesFromPantry: usesFromPantry
         )
     }
@@ -428,6 +438,33 @@ public final class MealStore {
                 unitLabel: ingredient.unitLabel
             )
         }
+    }
+
+    // MARK: - Nutrition-source provenance mix (MK-6, meals-feature-design.md §8.3)
+
+    /// Tallies `ingredients` by where their nutrition data came from — Open
+    /// Food Facts vs. Custom (meals-feature-design.md §8.3) — so a meal
+    /// detail view can show a total built mostly on hand-entered numbers as
+    /// distinguishable from one built on Open Food Facts data. Pure and
+    /// `static`, mirroring `completeness(for:)`, so it works over any
+    /// in-progress ingredient list, not just an already-saved `MealEntry`.
+    public static func provenanceMix(for ingredients: [LoggedIngredient]) -> NutritionProvenanceMix {
+        var openFoodFacts = 0
+        var custom = 0
+        var unknown = 0
+        var noData = 0
+        for ingredient in ingredients {
+            guard ingredient.nutritionSnapshot != nil else {
+                noData += 1
+                continue
+            }
+            switch ingredient.nutritionSource {
+            case .openFoodFacts: openFoodFacts += 1
+            case .custom: custom += 1
+            case nil: unknown += 1
+            }
+        }
+        return NutritionProvenanceMix(openFoodFactsCount: openFoodFacts, customCount: custom, unknownCount: unknown, noDataCount: noData)
     }
 
     // MARK: - Ingredient history (no network call)

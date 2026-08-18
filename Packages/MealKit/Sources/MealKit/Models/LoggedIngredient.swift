@@ -41,6 +41,20 @@ public struct LoggedIngredient: Identifiable, Codable, Equatable {
     /// this as a completeness gap in the total, never silently treat it as
     /// zero.
     public var nutritionSnapshot: Nutrition?
+    /// Where `nutritionSnapshot` came from — Open Food Facts or a user's own
+    /// hand-entered "Custom" data (`FoodFoundation.NutritionSource`, already
+    /// badged this way throughout the app) — frozen alongside the snapshot
+    /// itself at logging time, same reasoning as everything else here. `nil`
+    /// for ingredients logged before this field existed, or when
+    /// `nutritionSnapshot` itself is `nil` (provenance is moot with no data
+    /// to provenance). This is what a meal detail view's nutrition-source
+    /// provenance mix (meals-feature-design.md §8.3) is built from — almost
+    /// always `.openFoodFacts` in practice, since only the "from pantry"
+    /// ingredient source (composed at `Foodpoint`'s app layer, never inside
+    /// `MealKit` itself, which has no notion of "custom" data of its own)
+    /// can ever produce `.custom`, when that barcode's currently-default
+    /// pantry nutrition variant happens to be a hand-entered one.
+    public var nutritionSource: NutritionSource?
     /// Whether eating this ingredient decremented pantry stock. Seeded from
     /// the source `TemplateIngredient`'s default when instantiated, but
     /// independently editable per logged instance from then on
@@ -59,6 +73,7 @@ public struct LoggedIngredient: Identifiable, Codable, Equatable {
         unitLabel: String,
         gramsResolved: Double,
         nutritionSnapshot: Nutrition?,
+        nutritionSource: NutritionSource? = nil,
         usesFromPantry: Bool = true
     ) {
         self.id = id
@@ -70,6 +85,7 @@ public struct LoggedIngredient: Identifiable, Codable, Equatable {
         self.unitLabel = unitLabel
         self.gramsResolved = gramsResolved
         self.nutritionSnapshot = nutritionSnapshot
+        self.nutritionSource = nutritionSource
         self.usesFromPantry = usesFromPantry
     }
 }
