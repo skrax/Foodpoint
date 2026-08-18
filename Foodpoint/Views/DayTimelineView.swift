@@ -49,6 +49,19 @@ import FoodpointKit
 /// established by `PackageVariantsView.row(for:)` and reused by UX-3's
 /// search-result rows — so the row push and the planned-row's separate
 /// tick-off `Button` don't conflict.
+///
+/// **MK-4 additions**, folded in the same way: the same leading toolbar
+/// menu also reaches `TemplatesListView` (memorized meals, one-tap
+/// logging — see that file for the template CRUD and instantiate-and-log
+/// flow itself, kept out of this file by design). After composing and
+/// logging an ad-hoc meal **for today** — never for a future/planned
+/// entry, which hasn't actually been eaten yet — `addEntry` offers
+/// "Remember this meal?" (`RememberMealPrompt.swift`, reusing
+/// `ScannerView`'s variant-naming alert shape verbatim) to promote the
+/// just-logged ingredients into a `MealTemplate`. If that same log also
+/// triggered the insufficient-stock alert, the two are sequenced rather
+/// than shown at once: the stock alert's "OK" button is what actually
+/// triggers the remember prompt in that case.
 struct DayTimelineView: View {
     @Environment(AppState.self) private var appState
 
@@ -65,6 +78,14 @@ struct DayTimelineView: View {
 
     @State private var insufficientStockMessage: String?
     @State private var isShowingInsufficientStockAlert = false
+
+    /// The ad-hoc meal's ingredients, held onto from the moment they're
+    /// logged (today only — never for a future plan) until the "Remember
+    /// this meal?" prompt is dismissed one way or another (MK-4) —
+    /// `RememberMealPromptModifier`'s `presenting:` data.
+    @State private var pendingRememberIngredients: [LoggedIngredient]?
+    @State private var isShowingRememberPrompt = false
+    @State private var rememberMealName = ""
 
     /// The id of the entry currently pushed to `MealDetailView`, or `nil`
     /// when the timeline itself is on screen. Keyed on `id` rather than the
@@ -144,10 +165,28 @@ struct DayTimelineView: View {
             }
         }
         .alert("Insufficient Stock", isPresented: $isShowingInsufficientStockAlert, presenting: insufficientStockMessage) { _ in
-            Button("OK") {}
+            Button("OK") { presentRememberPromptIfPending() }
         } message: { message in
             Text(message)
         }
+        .rememberMealPrompt(
+            isPresented: $isShowingRememberPrompt,
+            pendingIngredients: pendingRememberIngredients,
+            name: $rememberMealName,
+            onSaveVariant: { ingredients in
+                saveAsTemplate(ingredients)
+                pendingRememberIngredients = nil
+                rememberMealName = ""
+            },
+            onJustThisOnce: {
+                pendingRememberIngredients = nil
+                rememberMealName = ""
+            },
+            onCancel: {
+                pendingRememberIngredients = nil
+                rememberMealName = ""
+            }
+        )
     }
 
     // MARK: - Date navigation
@@ -207,6 +246,11 @@ struct DayTimelineView: View {
     private var summaryMenu: some View {
         Menu {
             NavigationLink {
+                TemplatesListView()
+            } label: {
+                Label("Templates", systemImage: "star.fill")
+            }
+            NavigationLink {
                 RangeSummaryView()
             } label: {
                 Label("Range Summary", systemImage: "calendar")
@@ -242,10 +286,12 @@ struct DayTimelineView: View {
     /// at `slot`. A future day only plans it (`appState.meals.plan`) and
     /// stops — no pantry orchestration runs, so this has zero effect on
     /// stock or on today's totals until a later tick-off
-    /// (meals-feature-design.md §5). Today or an earlier day goes through
-    /// the same two-step plan-then-mark-eaten path MK-3 built for the
-    /// original ad-hoc composer, unchanged, including its soft
-    /// insufficient-stock note.
+    /// (meals-feature-design.md §5), and never offers to remember it as a
+    /// template (that's only for something actually eaten). Today or an
+    /// earlier day goes through the same two-step plan-then-mark-eaten path
+    /// MK-3 built for the original ad-hoc composer, unchanged, including its
+    /// soft insufficient-stock note — and then offers "Remember this meal?"
+    /// (MK-4), sequenced after the stock alert if both apply.
     private func addEntry(ingredients: [LoggedIngredient], slot: MealSlot) {
         if isFutureDay {
             appState.meals.plan(name: "Planned Meal", date: selectedDate, slot: slot, ingredients: ingredients)
@@ -254,7 +300,10 @@ struct DayTimelineView: View {
 
         let planned = appState.meals.plan(name: "Ad-hoc Meal", date: selectedDate, slot: slot, ingredients: ingredients)
         appState.markMealEaten(planned.id)
-        presentInsufficientStockAlertIfNeeded(for: planned.id)
+        pendingRememberIngredients = ingredients
+        if !presentInsufficientStockAlertIfNeeded(for: planned.id) {
+            isShowingRememberPrompt = true
+        }
     }
 
     // MARK: - Tick-off
@@ -262,17 +311,43 @@ struct DayTimelineView: View {
     /// Ticks a planned entry off via `appState.markMealEaten(_:)` — the same
     /// MK-3 orchestration a direct log uses (meals-feature-design.md §5) —
     /// then surfaces MK-3's existing soft insufficient-stock note if
-    /// anything clamped.
+    /// anything clamped. Never offers "Remember this meal?" — that's
+    /// `addEntry`'s ad-hoc-today path only.
     private func tickOff(_ entry: MealEntry) {
         appState.markMealEaten(entry.id)
         presentInsufficientStockAlertIfNeeded(for: entry.id)
     }
 
-    private func presentInsufficientStockAlertIfNeeded(for entryID: UUID) {
+    @discardableResult
+    private func presentInsufficientStockAlertIfNeeded(for entryID: UUID) -> Bool {
         let shortIngredients = appState.insufficientStockIngredients(for: entryID)
-        guard !shortIngredients.isEmpty else { return }
+        guard !shortIngredients.isEmpty else { return false }
         insufficientStockMessage = "Not enough pantry stock for \(shortIngredients.joined(separator: ", ")) — clamped to zero."
         isShowingInsufficientStockAlert = true
+        return true
+    }
+
+    /// The insufficient-stock alert's "OK" action: if `addEntry` left a
+    /// pending remember-prompt behind, show it now that the stock alert is
+    /// out of the way (the two are never presented at once).
+    private func presentRememberPromptIfPending() {
+        guard pendingRememberIngredients != nil else { return }
+        isShowingRememberPrompt = true
+    }
+
+    /// "Save Variant" on the remember prompt: promotes `ingredients` into a
+    /// new `MealTemplate`, defaulting to today's current slot and an
+    /// "Untitled Meal" name if the field was left blank rather than
+    /// discarding the save outright.
+    private func saveAsTemplate(_ ingredients: [LoggedIngredient]) {
+        guard !ingredients.isEmpty else { return }
+        let trimmedName = rememberMealName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let template = MealTemplate(
+            name: trimmedName.isEmpty ? "Untitled Meal" : trimmedName,
+            defaultSlot: MealSlot.current(),
+            ingredients: ingredients.map(TemplateIngredient.init(logged:))
+        )
+        appState.meals.addTemplate(template)
     }
 
     // MARK: - Row UI

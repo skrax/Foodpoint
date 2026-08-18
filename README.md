@@ -107,22 +107,37 @@ of it had fully removed. Editing a product's nutrition later never rewrites
 an already-eaten meal's numbers: pantry state is live, meal history is a
 frozen snapshot.
 
-The Meals tab also shows a day totals header above the entry list: eaten
-calories/macros with a completeness signal ("≥ 340 kcal" when some
-ingredient has no nutrition data), plus planned calories as a separate
-"planned +X" line whenever there's anything planned for the day — eaten and
-planned are never summed into one figure. A leading toolbar menu opens a
-week/month **range summary** (daily totals, an average, and a purely
-descriptive trend — no goals or targets) and a **most-consumed** list
-ranking every product eaten in the last 30 days. Tapping a meal entry pushes
-its detail screen, which — alongside its ingredients and nutrition total —
-shows a **nutrition-source provenance mix**: how much of that meal's total
-came from Open Food Facts data versus a hand-entered "Custom" nutrition
-variant. `ItemDetailView` (an item's detail screen in the Items tab) gained
-a matching **Consumption** section: last eaten, times eaten, and total
-amount over the last 30 days for that product, read by cross-referencing
-`appState.meals` by barcode from the pantry-side view (`MealKit` itself
-still never references `PantryKit`).
+A meal you log often can be saved as a **template** and logged again with
+one tap — the fast path templates exist for: tap a memorized meal in the
+"Templates" list (reachable from the Meals tab's leading toolbar menu) and
+it's logged to today at the current slot, pantry decremented, with
+nutrition re-resolved fresh (never a stale cached value) so a later
+correction to a product's data is reflected. Templates get created two
+ways: explicitly, from a "New Meal" editor that reuses the same
+ingredient-composition UI (also used to "Edit" a template's ingredients
+later); or promoted from something already logged — after an ad-hoc log
+**for today**, a "Remember this meal?" prompt offers to save it, reusing
+the scanner's own package-size-naming prompt verbatim (a name field, "Save
+Variant"/"Just This Once"/"Cancel"). Templates can be renamed, edited
+(name, default slot, and ingredients), and deleted from the Templates
+list, all without affecting meals already logged from them.
+
+The same leading toolbar menu also opens a week/month **range summary**
+(daily totals, an average, and a purely descriptive trend — no goals or
+targets) and a **most-consumed** list ranking every product eaten in the
+last 30 days. The Meals tab shows a day totals header above the entry
+list: eaten calories/macros with a completeness signal ("≥ 340 kcal" when
+some ingredient has no nutrition data), plus planned calories as a
+separate "planned +X" line whenever there's anything planned for the day —
+eaten and planned are never summed into one figure. Tapping a meal entry
+pushes its detail screen, which — alongside its ingredients and nutrition
+total — shows a **nutrition-source provenance mix**: how much of that
+meal's total came from Open Food Facts data versus a hand-entered "Custom"
+nutrition variant. `ItemDetailView` (an item's detail screen in the Items
+tab) gained a matching **Consumption** section: last eaten, times eaten,
+and total amount over the last 30 days for that product, read by
+cross-referencing `appState.meals` by barcode from the pantry-side view
+(`MealKit` itself still never references `PantryKit`).
 
 With this range-summary/consumption work (MK-6) landed alongside the
 day-timeline/templates/planning work built in parallel with it (MK-4/MK-5),
@@ -214,29 +229,44 @@ Foodpoint/
                         navigation, entries grouped by MealSlot, and a
                         DayTotalsHeaderView (eaten/planned totals, kept
                         separate, plus a completeness signal). A leading
-                        toolbar menu reaches RangeSummaryView and
-                        MostConsumedView; tapping a row pushes
-                        MealDetailView. A "+" menu picks a slot then opens
-                        MealCompositionEditorView; composing for today
-                        logs immediately (plan + appState.markMealEaten,
-                        decrementing pantry for "Use from pantry"
-                        ingredients, soft note if stock ran short) while
-                        composing for a future day only plans it — zero
-                        pantry/totals effect until ticked off. Planned
-                        rows are outlined, get a checkmark tick-off button
-                        (same appState.markMealEaten path as direct
-                        logging) and a live "needs 6 eggs, have 4" note
-                        (appState.stockShortfalls) computed without
-                        reserving stock. Eaten rows keep the swipe-to-undo
-                        action (appState.undoMealEaten) that restores
-                        pantry stock exactly
+                        toolbar menu reaches TemplatesListView,
+                        RangeSummaryView, and MostConsumedView; tapping a
+                        row pushes MealDetailView. A "+" menu picks a slot
+                        then opens MealCompositionEditorView; composing
+                        for today logs immediately (plan +
+                        appState.markMealEaten, decrementing pantry for
+                        "Use from pantry" ingredients, soft note if stock
+                        ran short, then offering "Remember this meal?" to
+                        save it as a template) while composing for a
+                        future day only plans it — zero pantry/totals
+                        effect until ticked off, and no remember prompt
+                        (nothing's been eaten yet). Planned rows are
+                        outlined, get a checkmark tick-off button (same
+                        appState.markMealEaten path as direct logging,
+                        but never the remember prompt) and a live "needs 6
+                        eggs, have 4" note (appState.stockShortfalls)
+                        computed without reserving stock. Eaten rows keep
+                        the swipe-to-undo action (appState.undoMealEaten)
+                        that restores pantry stock exactly
     MealCompositionEditorView.swift  Ingredient rows + running nutrition
                         footer with a completeness signal; four ingredient
                         sources (pantry/history/scan/search) behind an
-                        "Add Ingredient" menu
+                        "Add Ingredient" menu; reused by TemplateEditorView
+                        for template creation/editing too
     MealIngredientPantryPickerView.swift, MealIngredientHistoryPickerView.swift,
     MealIngredientUnitSetupView.swift  The four sources' picker sheets used
                         by the composition editor
+    TemplatesListView.swift  (MK-4) Templates list: tap a row to log it in
+                        one tap (TemplateLogButton), "+" to create one,
+                        swipe/context menu to rename, edit, or delete
+    TemplateEditorView.swift  (MK-4) "New Meal"/"Edit" template form (name,
+                        default slot, ingredients via
+                        MealCompositionEditorView)
+    TemplateLogButton.swift  (MK-4) Reusable one-tap-log control with its
+                        own loading/error state
+    RememberMealPrompt.swift  (MK-4) The "Remember this meal?" prompt
+                        (reuses ScannerView's package-size-naming alert
+                        verbatim)
     DayTotalsHeaderView.swift  (MK-6) Day totals header: eaten
                         calories/macros with a completeness signal, plus a
                         "planned +X" projection when anything's planned for
@@ -263,9 +293,13 @@ Packages/
                            "Use from pantry" ingredients, clamping to zero
                            and re-creating a fully-depleted item on undo),
                            insufficientStockIngredients (for the soft-note
-                           UI), and stockShortfalls (the day timeline's live
+                           UI), stockShortfalls (the day timeline's live
                            "needs 6 eggs, have 4" signal on a planned entry,
-                           computed without reserving any stock)
+                           computed without reserving any stock), and
+                           logTemplateAndMarkEaten (one-tap template
+                           logging: instantiate, plan, then markMealEaten,
+                           so it decrements pantry identically to a manual
+                           log)
     Tests/FoodpointKitTests/  Swift Testing unit tests for the orchestration
                               above only
 
@@ -286,11 +320,13 @@ Packages/
     Sources/MealKit/
       MealStore.swift       Template CRUD; entry CRUD/lifecycle (log
                             directly as eaten, plan for later, markEaten,
-                            undo); day/range nutrition aggregation with
-                            completeness reporting; consumption stats;
-                            provenanceMix (MK-6, Open Food Facts vs.
-                            Custom); makeIngredient (pure grams/nutrition
-                            math, shared with the composition editor's live
+                            undo); logTemplate/planTemplate (instantiate a
+                            template fresh, then log/plan it); day/range
+                            nutrition aggregation with completeness
+                            reporting; consumption stats; provenanceMix
+                            (MK-6, Open Food Facts vs. Custom);
+                            makeIngredient (pure grams/nutrition math,
+                            shared with the composition editor's live
                             amount editing) and recentlyUsedIngredients/
                             lastKnownUnit (the "from history" source);
                             entries(on:)/entriesGroupedBySlot(on:) (the day
@@ -298,12 +334,15 @@ Packages/
                             pure "needs more than the pantry holds" check,
                             taking availability as a closure so it stays
                             free of any PantryKit dependency)
-      Models/               MealTemplate, MealEntry, TemplateIngredient,
-                            LoggedIngredient (+ impliedUnit/
-                            impliedNutritionPer100g, for editing a
-                            historical ingredient's amount with no network
-                            call; + nutritionSource, MK-6, frozen alongside
-                            nutritionSnapshot), MealSlot, MealStatus,
+      Models/               MealTemplate, MealEntry, TemplateIngredient
+                            (+ init(logged:), demoting a LoggedIngredient
+                            back into a template row for "Remember this
+                            meal?"/template editing), LoggedIngredient
+                            (+ impliedUnit/impliedNutritionPer100g, for
+                            editing a historical ingredient's amount with
+                            no network call; + nutritionSource, MK-6,
+                            frozen alongside nutritionSnapshot), MealSlot,
+                            MealStatus,
                             NutritionCompleteness/DayNutritionTotal/
                             RangeNutritionSummary (+ caloricTrend, MK-6)/
                             ConsumptionStats/NutritionProvenanceMix (MK-6)

@@ -94,9 +94,9 @@ dependency" below).
     `Views/MealsView.swift` (MK-2/MK-3, restructured MK-5), now a thin
     `NavigationStack` shell hosting `Views/DayTimelineView.swift` (MK-5,
     see its own bullet below) — the real Meals tab home (day timeline,
-    planning/tick-off) meals-feature-design.md §10 calls for. Templates
-    (memorized meals, one-tap logging) are still MK-4 territory.
-    `ScannerView` is
+    planning/tick-off, templates access, and range/consumption surfaces
+    from MK-4/MK-6, both folded into the same screen) meals-feature-design.md
+    §10 calls for. `ScannerView` is
     scan-only (UX-2): its single acquisition path is the camera
     (`FastFoodBarcodeScanner`) driving `fetchFoodData(for:)`. It has no
     search UI of its own — `Views/ProductSearchView.swift` (text search)
@@ -160,10 +160,17 @@ dependency" below).
       itself (MK-2's Scope explicitly excludes "actually saving/logging
       the meal") — it hands the composed `[LoggedIngredient]` to an
       `onDone` closure and lets the caller decide; `DayTimelineView` (MK-5,
-      formerly `MealsView` itself pre-MK-5) is the real caller now, wiring
-      `onDone` into `appState.meals.plan`/`appState.markMealEaten(_:)`
-      depending on the selected date. Reused as-is for template creation
-      (MK-4) is the intent behind that closure-based contract.
+      formerly `MealsView` itself pre-MK-5) is the real caller for ad-hoc
+      logging, wiring `onDone` into `appState.meals.plan`/
+      `appState.markMealEaten(_:)` depending on the selected date.
+      `TemplateEditorView` (MK-4, see its own bullet below) is the first of
+      the reuses this view's closure-based contract was built to anticipate:
+      its `init(initialIngredients:title:onDone:)` (MK-4) pre-populates
+      `rows` from an already-composed `[LoggedIngredient]` — used to reopen
+      an existing template's ingredients for editing — and its `title` param
+      ("New Meal"/"Edit Meal") replaces what used to be a hardcoded
+      `.navigationTitle("New Meal")`. `formattedAmount` became a
+      `private static func` so the new init can call it before `self` exists.
     - `MealIngredientPantryPickerView.swift`, `MealIngredientHistoryPickerView.swift`,
       `MealIngredientUnitSetupView.swift` (MK-2) — the four sources'
       picker sheets described above.
@@ -261,6 +268,46 @@ dependency" below).
       `appState.meals.recentlyUsedIngredients()` (what `MealKit` actually
       logged amounts in), not the pantry's own current unit, since the two
       are independently configured and can differ (§6.3).
+    - `TemplatesListView.swift` (MK-4) — the full templates screen:
+      memorized meals, tap-to-log-in-one-tap (`TemplateLogButton`, wired to
+      `AppState.logTemplateAndMarkEaten`), creation via `TemplateEditorView`
+      ("New Meal"), and per-template rename (swipe action + name alert)/
+      edit (context menu → `TemplateEditorView`)/delete (swipe action or
+      context menu + confirmation alert). Reachable from `DayTimelineView`'s
+      leading toolbar menu (see its own bullet above), alongside
+      `RangeSummaryView`/`MostConsumedView`.
+    - `TemplateEditorView.swift` (MK-4) — the "New Meal" template editor,
+      doubling as "Edit" for an existing template (`template: MealTemplate?`,
+      `nil` for creation). A plain `Form` (name `TextField`, `defaultSlot`
+      segmented `Picker`) around an "Edit Ingredients"/"Add Ingredients"
+      button that presents `MealCompositionEditorView` as a sheet for the
+      ingredient-composition part — this view only adds the metadata MK-2's
+      editor doesn't collect. Editing re-instantiates the template's
+      ingredients fresh (`appState.meals.instantiate(template)`) before
+      handing them to the composition editor, matching a template being "a
+      live recipe" rather than a frozen record. Saving demotes the
+      composed `[LoggedIngredient]` back to `[TemplateIngredient]` via
+      `TemplateIngredient.init(logged:)` (MealKit, see its bullet below)
+      and calls `appState.meals.addTemplate`/`updateTemplate`.
+    - `TemplateLogButton.swift` (MK-4) — a reusable tappable "log this
+      template now" control wrapping `AppState.logTemplateAndMarkEaten`
+      with its own loading/error state, so `TemplatesListView`'s row (the
+      only current caller) doesn't duplicate that async/error-handling
+      glue. `label` is a `@ViewBuilder` so the caller owns the tappable
+      area's visual shape.
+    - `RememberMealPrompt.swift` (MK-4) — `RememberMealPromptModifier` +
+      a `View.rememberMealPrompt(...)` extension: the "Remember this
+      meal?" prompt shown after an ad-hoc log **for today only** (never for
+      a future plan — nothing's actually been eaten yet), reusing
+      `ScannerView`'s "New Package Size" alert **verbatim** in shape (name
+      `TextField`, "Save Variant"/"Just This Once"/"Cancel", `presenting:`
+      the pending ingredients rather than a bare `Bool` so the message
+      closure can describe what's being remembered). Wired from
+      `DayTimelineView.addEntry` — see that bullet above for how the
+      insufficient-stock alert and the remember prompt are sequenced so
+      they never show simultaneously. Factored into its own file/
+      `ViewModifier` rather than inlined, the same "keep the host view's
+      diff small" reason as `TemplatesListView`/`TemplateEditorView` above.
   - `Scanners/` — Barcode scanning. Wraps `AVFoundation`
     (`AVCaptureSession`) directly via `UIViewRepresentable`; not a
     SwiftUI-native camera API, and specifically not VisionKit's
@@ -330,6 +377,22 @@ dependency" below).
       mutates anything — and empty for an entry that isn't currently
       `.planned` (an eaten entry's pantry effect, if any, already
       happened).
+    - `logTemplateAndMarkEaten(_ template:date:slot:) async throws -> MealEntry?`
+      (MK-4, meals-feature-design.md §7) — one-tap template logging's
+      orchestration-aware counterpart to `MealStore.logTemplate`, which
+      alone can't decrement pantry stock (same reason `MealStore.markEaten`
+      alone can't). Follows the exact `meals.instantiate` → `meals.plan` →
+      `markMealEaten(_:)` two-step path ad-hoc logging already uses, so a
+      template tap behaves identically to a manually composed and logged
+      meal. Not covered by `FoodpointKitTests` directly — `AppState.meals`
+      has no `productResolver` injection seam of its own (unlike a
+      directly-constructed `MealStore` in `MealKitTests`), so exercising
+      this here would need a live network call, which this repo's tests
+      never make; the pieces it composes are each already covered
+      separately (`MealKitTests`' `TemplateInstantiationTests`/
+      `TemplatePromotionTests`, this package's own
+      `MealPantryOrchestrationTests`), and the method itself is exercised
+      by manual verification.
   - `Tests/FoodpointKitTests/MealPantryOrchestrationTests.swift` — Swift
     Testing, covers only this orchestration (package-architecture.md
     §4.2's "much smaller `FoodpointKitTests`"), not `PantryStore`'s/
@@ -475,7 +538,10 @@ dependency" below).
       instantiation's cached value (meals-feature-design.md §4.1) — the
       network cost is accepted, same tradeoff re-scanning a barcode
       already has elsewhere in this app. `logTemplate`/`planTemplate` wrap
-      this plus `logEaten`/`plan` for one-tap logging.
+      this plus `logEaten`/`plan` for one-tap logging (MK-4's
+      `TemplatesListView`/`TemplateLogButton` don't call these directly,
+      though — see the `FoodpointKit` bullet's `logTemplateAndMarkEaten`
+      for why one-tap logging needs the orchestration layer instead).
     - `recentlyUsedIngredients()` — every distinct barcode this store has
       ever logged, one `LoggedIngredient` each, most-recently-used entry
       first; reads straight off already-snapshotted fields, so — unlike
@@ -496,7 +562,9 @@ dependency" below).
       items — see package-architecture.md §3.5's example and the
       `FoodpointKit` bullet above. `removeEntry` follows the same "hand
       back what changed" contract, returning the deleted entry, but has no
-      `FoodpointKit`-level caller yet (still MK-4/MK-5 territory).
+      `FoodpointKit`-level caller yet (deleting a logged entry, as opposed
+      to a template — MK-4 added `removeTemplate`'s app-level caller,
+      `TemplatesListView` — is still MK-5 territory).
     - `dayTotal(for:)`/`rangeSummary(from:to:)` — nutrition aggregation.
       `.eaten` and `.planned` totals are always kept separate, never
       summed (meals-feature-design.md §8.1), and every total is a
@@ -562,8 +630,14 @@ dependency" below).
     make `amount` meaningful and to support genuine one-tap logging
     without re-asking "weight or count?" every time; scoped to this
     ingredient alone, never shared with `PantryKit`'s per-barcode
-    configuration even for the same barcode), `LoggedIngredient` (same
-    identity fields as `TemplateIngredient` plus `unitLabel`,
+    configuration even for the same barcode; also has `init(logged:)`
+    (MK-4) — demotes an already-resolved `LoggedIngredient` back into a
+    template row, dropping `nutritionSnapshot` and reconstructing `unit`
+    via `impliedUnit`, since a template resolves nutrition fresh on every
+    use rather than reusing a value frozen at promotion time. This is the
+    conversion behind both `TemplateEditorView`'s "New Meal"/"Edit" save
+    and `RememberMealPromptModifier`'s "Save Variant"), `LoggedIngredient`
+    (same identity fields as `TemplateIngredient` plus `unitLabel`,
     `gramsResolved`, `nutritionSnapshot: Nutrition?`, and (MK-6)
     `nutritionSource: NutritionSource?` — all frozen at logging time, never
     re-touched afterward: **pantry state is live, meal history is frozen**,
@@ -579,7 +653,9 @@ dependency" below).
     a full `ProductUnit`/raw per-100g `Nutrition`, only the frozen,
     already-scaled results. `MealSlot`
     (`.breakfast`/`.lunch`/`.dinner`/`.snack`, fixed — not user-configurable
-    — with a `current(at:calendar:)` time-of-day default), `MealStatus`
+    — with a `current(at:calendar:)` time-of-day default; also `Hashable`,
+    MK-4, so `TemplateEditorView`'s `Picker(selection:)` can bind to it
+    directly instead of round-tripping through `rawValue`), `MealStatus`
     (`.planned`/`.eaten`), and `NutritionCompleteness`/`DayNutritionTotal`/
     `RangeNutritionSummary` (+ `caloricTrend`, MK-6)/`ConsumptionStats`/
     `NutritionProvenanceMix` (MK-6, `MealStore.provenanceMix(for:)`'s
@@ -607,6 +683,12 @@ dependency" below).
     (MK-6) covers `RangeNutritionSummary.caloricTrend`'s increasing/
     decreasing/flat/empty-range cases — both new, pure, network-free
     suites in the same no-`StubProductResolver` style.
+    `TemplatePromotionTests.swift` (MK-4) covers
+    `TemplateIngredient.init(logged:)` (pure, no resolver) and
+    `logTemplate`/`planTemplate`'s instantiate-and-log semantics (with a
+    `StubProductResolver`, since `instantiate` does resolve) — the latter
+    previously untested even though `instantiate` itself already was
+    (`TemplateInstantiationTests.swift`, MK-3).
 
 - `Packages/OpenFoodFactsKit/` (local package, product `OpenFoodFactsKit`) —
   all networking and wire-format types for Open Food Facts' APIs:

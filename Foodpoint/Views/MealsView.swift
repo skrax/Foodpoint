@@ -7,10 +7,10 @@ import FoodpointKit
 /// This view itself is now deliberately thin: it owns just the tab's
 /// `NavigationStack` shell and hosts `DayTimelineView`, which is where the
 /// actual timeline (date navigation, slot grouping, planned/eaten rows,
-/// tick-off, undo, the insufficient-stock signal) lives. Splitting it out
-/// this way, rather than growing this file in place, keeps "the new Meals
-/// tab home screen" as one clearly-scoped file rather than an ever-larger
-/// `MealsView`.
+/// tick-off, undo, the insufficient-stock signal, templates access, and the
+/// "Remember this meal?" prompt) lives. Splitting it out this way, rather
+/// than growing this file in place, keeps "the new Meals tab home screen" as
+/// one clearly-scoped file rather than an ever-larger `MealsView`.
 struct MealsView: View {
     var body: some View {
         NavigationStack {

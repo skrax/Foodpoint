@@ -13,7 +13,11 @@ import FoodpointKit
 /// below — the actual persisting/orchestrating stays the caller's job.
 /// MK-4/MK-5 are expected to reuse this same view for template creation and
 /// planning, which is why `onDone` hands back the composed ingredients
-/// rather than this view persisting anything itself.
+/// rather than this view persisting anything itself. MK-4's
+/// `TemplateEditorView` is the first of those reuses, for both the "New
+/// Meal" template editor (empty `initialIngredients`) and "Edit" on an
+/// existing template (pre-populated from `MealStore.instantiate`) — see
+/// `initialIngredients`/`title` below.
 ///
 /// Four ingredient sources (§6.1), each ultimately producing one more row:
 /// 1. **From the pantry** (`MealIngredientPantryPickerView`) — reads
@@ -38,10 +42,28 @@ struct MealCompositionEditorView: View {
     /// though `MealsView` (MK-3) now supplies a real handler.
     var onDone: ([LoggedIngredient]) -> Void = { _ in }
 
+    /// The navigation title shown while this view is presented. Defaults to
+    /// "New Meal" (MK-2/MK-3's original, only use); `TemplateEditorView`
+    /// (MK-4) passes "Edit Meal" when reusing this view to edit an existing
+    /// template's ingredients, so the sheet reads correctly for both cases
+    /// without this view needing to know why it's being shown.
+    var title: String = "New Meal"
+
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
-    @State private var rows: [ComposerRow] = []
+    @State private var rows: [ComposerRow]
+
+    /// Pre-populates `rows` from an already-composed ingredient list (MK-4)
+    /// — used by `TemplateEditorView` to let "Edit" reopen this view with a
+    /// template's current ingredients already on screen, rather than
+    /// forcing a from-scratch recomposition. Defaults to empty, matching
+    /// MK-2/MK-3's original from-scratch-only behavior.
+    init(initialIngredients: [LoggedIngredient] = [], title: String = "New Meal", onDone: @escaping ([LoggedIngredient]) -> Void = { _ in }) {
+        self.title = title
+        self.onDone = onDone
+        _rows = State(initialValue: initialIngredients.map { ComposerRow(ingredient: $0, amountText: Self.formattedAmount($0.amount)) })
+    }
 
     @State private var isShowingSourceMenu = false
     @State private var isShowingPantryPicker = false
@@ -104,7 +126,7 @@ struct MealCompositionEditorView: View {
                     footer
                 }
             }
-            .navigationTitle("New Meal")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -362,7 +384,7 @@ struct MealCompositionEditorView: View {
             nutritionSource: historical.nutritionSource,
             usesFromPantry: true
         )
-        rows.append(ComposerRow(ingredient: ingredient, amountText: formattedAmount(historical.amount)))
+        rows.append(ComposerRow(ingredient: ingredient, amountText: Self.formattedAmount(historical.amount)))
     }
 
     /// Sources #3/#4 (scan/search) funnel through here once a barcode is in
@@ -407,7 +429,7 @@ struct MealCompositionEditorView: View {
         rows.append(ComposerRow(ingredient: ingredient, amountText: "1"))
     }
 
-    private func formattedAmount(_ amount: Double) -> String {
+    private static func formattedAmount(_ amount: Double) -> String {
         amount.formatted(.number.precision(.fractionLength(0...2)))
     }
 }
