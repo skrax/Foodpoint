@@ -2,7 +2,7 @@
 id: MK-5
 epic: meals-feature
 title: Planning and tick-off
-status: backlog
+status: in-progress
 depends_on: [MK-3]
 design_doc: meals-feature-design.md#5-entry-lifecycle
 ---

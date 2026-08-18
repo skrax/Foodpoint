@@ -2,7 +2,7 @@
 id: MK-3
 epic: meals-feature
 title: Manual logging loop and pantry orchestration
-status: backlog
+status: in-progress
 depends_on: [MK-1, MK-2, PA-5]
 design_doc: package-architecture.md#35-foodpointkit-shrinks-to-a-composition-root
 ---

@@ -2,7 +2,7 @@
 id: MK-6
 epic: meals-feature
 title: Range summary and consumption surfaces
-status: backlog
+status: in-progress
 depends_on: [MK-3]
 design_doc: meals-feature-design.md#8-nutrition-aggregation-over-a-timespan
 ---
