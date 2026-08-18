@@ -91,11 +91,12 @@ dependency" below).
   - `ScannerView.swift`, `ContentView.swift`, `FoodpointApp.swift` — the
     latter injects `AppState.shared` into the environment. `ContentView`'s
     root `TabView` has three tabs: Items, Scan, and Meals — the last is
-    `Views/MealsView.swift` (MK-2/MK-3), today a thin list-plus-composer
-    placeholder (see its own bullet below) that exists purely to make the
-    meal composition editor — and now the real logging/undo loop (MK-3) —
-    reachable before the real Meals tab (day timeline, templates) lands in
-    MK-4/MK-5. `ScannerView` is
+    `Views/MealsView.swift` (MK-2/MK-3, restructured MK-5), now a thin
+    `NavigationStack` shell hosting `Views/DayTimelineView.swift` (MK-5,
+    see its own bullet below) — the real Meals tab home (day timeline,
+    planning/tick-off) meals-feature-design.md §10 calls for. Templates
+    (memorized meals, one-tap logging) are still MK-4 territory.
+    `ScannerView` is
     scan-only (UX-2): its single acquisition path is the camera
     (`FastFoodBarcodeScanner`) driving `fetchFoodData(for:)`. It has no
     search UI of its own — `Views/ProductSearchView.swift` (text search)
@@ -158,30 +159,54 @@ dependency" below).
       rather than re-fetching. Deliberately **does not** persist anything
       itself (MK-2's Scope explicitly excludes "actually saving/logging
       the meal") — it hands the composed `[LoggedIngredient]` to an
-      `onDone` closure and lets the caller decide; `MealsView` (MK-3) is
-      the real caller now, wiring `onDone` into
-      `appState.meals.plan`/`appState.markMealEaten(_:)`. Reused as-is for
-      template creation (MK-4) and planning (MK-5) is the intent behind
-      that closure-based contract.
+      `onDone` closure and lets the caller decide; `DayTimelineView` (MK-5,
+      formerly `MealsView` itself pre-MK-5) is the real caller now, wiring
+      `onDone` into `appState.meals.plan`/`appState.markMealEaten(_:)`
+      depending on the selected date. Reused as-is for template creation
+      (MK-4) is the intent behind that closure-based contract.
     - `MealIngredientPantryPickerView.swift`, `MealIngredientHistoryPickerView.swift`,
       `MealIngredientUnitSetupView.swift` (MK-2) — the four sources'
       picker sheets described above.
-    - `MealsView.swift` (MK-2/MK-3) — the Meals tab's current placeholder
-      body: a "+" button opens `MealCompositionEditorView`; its `onDone`
-      plans the composed ingredients (`appState.meals.plan`) then
-      immediately calls `appState.markMealEaten(_:)` to transition the
-      entry to `.eaten` and apply its pantry orchestration (MK-3,
-      package-architecture.md §3.5) — the two-step path because
-      `markMealEaten` only operates on a `.planned` entry, matching
-      `MealStore.markEaten`'s own contract. If
-      `appState.insufficientStockIngredients(for:)` reports any ingredient
-      came up short against pantry stock, this shows a non-blocking
-      "Insufficient Stock" alert (meals-feature-design.md §4.4's soft
-      note) — logging itself already succeeded either way. Each `.eaten`
-      row also has a swipe-to-undo action calling
-      `appState.undoMealEaten(_:)`, which restores pantry stock exactly
-      (see the `FoodpointKit` bullet below) and moves the entry back to
-      `.planned`.
+    - `MealsView.swift` (MK-2/MK-3, restructured MK-5) — the Meals tab
+      root. As of MK-5 this is deliberately thin: it owns only the tab's
+      `NavigationStack` and hosts `DayTimelineView`, which is where the
+      actual screen (and all its state) now lives — this split keeps "the
+      new Meals tab home screen" as one clearly-scoped file rather than an
+      ever-growing `MealsView`.
+    - `DayTimelineView.swift` (MK-5, meals-feature-design.md §10) — the
+      real Meals tab home: **Meals tab home is the day timeline, opening
+      on today.** Date navigation (chevron buttons either side of a
+      "Today"/"Tomorrow"/"Yesterday"/formatted-date label, tapping the
+      label jumps back to today) drives `appState.meals.entriesGroupedBySlot(on:)`
+      (see the `MealStore.swift` bullet below), rendered as one `List`
+      `Section` per non-empty `MealSlot`, plus a day summary header from
+      `appState.meals.dayTotal(for:)` keeping eaten/planned as two
+      separate figures (meals-feature-design.md §8.1) — never summed.
+      Planned rows get a thin accent-color outline to read as visually
+      distinct from filled eaten rows (§10's "outlined rather than
+      filled"), plus a prominent checkmark tick-off button; eaten rows
+      keep MK-3's swipe-to-undo action unchanged. The "+" toolbar item is
+      a `Menu` of the four `MealSlot`s (picking one sets `pendingSlot`,
+      then presents `MealCompositionEditorView`) — composing entries always
+      goes through the same editor MK-2/MK-3 already use, never a
+      duplicate. Whether the composed ingredients land as `.planned` or
+      `.eaten` is decided purely by whether `selectedDate` is a future day:
+      a future day calls `appState.meals.plan` and stops — no pantry
+      orchestration runs at all, so a plan has zero effect on stock or on
+      today's totals until it's actually ticked off (meals-feature-design.md
+      §5, verified explicitly by `MealPantryOrchestrationTests`'
+      `planningNeverTouchesPantry`/`planningNeverAffectsTodaysEatenTotal`).
+      Today (or an earlier day, treated the same as "I already ate this")
+      goes through MK-3's original two-step `plan` + `appState.markMealEaten(_:)`
+      path unchanged, including its soft insufficient-stock alert.
+      Tick-off on a planned row calls the **same** `appState.markMealEaten(_:)`
+      MK-3 built — "the same object in different states," never a parallel
+      system (meals-feature-design.md §5) — and reuses the same
+      insufficient-stock alert. Each planned row also shows
+      `appState.stockShortfalls(for:)` (see the `FoodpointKit` bullet
+      below) as a "needs 6 eggs, have 4"-style caption, recomputed live on
+      every render rather than cached at plan time, since a plan must
+      never reserve or hold inventory (meals-feature-design.md §12 #5).
   - `Scanners/` — Barcode scanning. Wraps `AVFoundation`
     (`AVCaptureSession`) directly via `UIViewRepresentable`; not a
     SwiftUI-native camera API, and specifically not VisionKit's
@@ -241,6 +266,16 @@ dependency" below).
       `markMealEaten(_:)` and surface meals-feature-design.md §4.4's soft
       inline note without threading `consume`'s return value through the
       call site by hand.
+    - `stockShortfalls(for entryID:) -> [MealStore.StockShortfall]` (MK-5) —
+      the day timeline's soft "needs 6 eggs, you have 4" signal
+      (meals-feature-design.md §5, §12 #5). Wires `MealStore`'s pure
+      `stockShortfalls(for:availableQuantity:)` comparison (see the
+      `MealKit` bullet below) to `pantry.items`, since this is the one
+      place both stores are visible. Computed fresh from current `pantry`
+      quantities on every call — never reserves, holds, or otherwise
+      mutates anything — and empty for an entry that isn't currently
+      `.planned` (an eaten entry's pantry effect, if any, already
+      happened).
   - `Tests/FoodpointKitTests/MealPantryOrchestrationTests.swift` — Swift
     Testing, covers only this orchestration (package-architecture.md
     §4.2's "much smaller `FoodpointKitTests`"), not `PantryStore`'s/
@@ -248,7 +283,9 @@ dependency" below).
     beyond what's needed to prove the two are wired together correctly —
     the cases from meals-feature-design.md §14's "FoodpointKit
     (orchestration only)" list, plus the insufficient-stock/clamp and
-    §4.3 recreate-on-undo cases.
+    §4.3 recreate-on-undo cases, and (MK-5) that planning a future meal
+    has zero effect on pantry quantities or on today's eaten total, plus
+    `stockShortfalls`' live/non-reserving behavior.
 
 - `Packages/PantryKit/` (local package, product `PantryKit`) — the
   pantry's state and CRUD logic, no `import SwiftUI` anywhere in it.
@@ -416,6 +453,25 @@ dependency" below).
       often/how much a product was eaten; counts every `.eaten` ingredient
       row regardless of `usesFromPantry` ("did I eat this" != "did it come
       from my shelf" — meals-feature-design.md §9).
+    - `entries(on:calendar:)`/`entriesGroupedBySlot(on:calendar:)` (MK-5) —
+      the day timeline's pure queries (meals-feature-design.md §10):
+      `entries(on:)` narrows `entries` to one calendar day (`.planned` and
+      `.eaten` both included — status/visual distinction is the view's
+      job); `entriesGroupedBySlot(on:)` further buckets that day's entries
+      by `MealSlot`, in `MealSlot.allCases`' fixed order, including empty
+      slots so the timeline renders a stable section list.
+    - `StockShortfall`/`stockShortfalls(for:availableQuantity:)` (MK-5,
+      meals-feature-design.md §5/§12 #5) — the pure comparison behind the
+      day timeline's soft "needs 6 eggs, you have 4" signal on a planned
+      entry. Takes availability as a closure rather than reading
+      `PantryKit` directly (this package still has zero dependency on it)
+      so the check stays pure and unit-testable in isolation;
+      `FoodpointKit.AppState.stockShortfalls(for:)` (see its own bullet
+      above) is the real caller, supplying a closure over `pantry.items`.
+      A **read-only comparison against current stock, computed fresh every
+      call** — nothing here reserves or holds any quantity. Ingredients
+      with `usesFromPantry` off are never flagged, and a barcode with no
+      reported availability (`nil`) is treated as `0` available.
     - `MealStore.init(productResolver:)` takes a `ProductResolver =
       @Sendable (String) async throws -> Product` closure, defaulting to
       `FoodFoundation.ProductLookup.fetch`. This is a testability seam

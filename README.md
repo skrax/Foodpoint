@@ -70,25 +70,37 @@ default while the other stays available as an alternate, and declining
 isn't asked about again next scan. Manage nutrition variants from the
 "Nutrition" screen, reachable the same way as "Package Sizes".
 
-The Meals tab is a thin placeholder around the meal-composition editor —
-the real day timeline/templates screen is still to come, but the core
-logging loop works end to end: build a meal from ingredient rows, each
-with an amount and a "Use from pantry" toggle (on by default), and a
-running nutrition footer that flags when data is incomplete rather than
-silently under-counting. Ingredients come from four sources — the pantry,
-previously-logged history (no network call), scanning, or searching by
-name (both reusing the same camera/search flows as the Items tab) — and a
-barcode `MealKit` has never used before gets a quick, ingredient-scoped
-weight/count setup prompt, independent of the pantry's own configuration
-for that product even if one exists.
+The Meals tab is a day timeline, opening on today: date navigation moves
+between days, entries group by slot (breakfast/lunch/dinner/snack) under a
+day nutrition summary that keeps "eaten" and "planned" as two separate
+figures rather than summing them. Building a meal — whether logging it now
+or scheduling it for a future day — uses the same composition editor:
+ingredient rows, each with an amount and a "Use from pantry" toggle (on by
+default), plus a running nutrition footer that flags when data is
+incomplete rather than silently under-counting. Ingredients come from four
+sources — the pantry, previously-logged history (no network call),
+scanning, or searching by name (both reusing the same camera/search flows
+as the Items tab) — and a barcode `MealKit` has never used before gets a
+quick, ingredient-scoped weight/count setup prompt, independent of the
+pantry's own configuration for that product even if one exists.
 
-Tapping "Done" logs the meal and decrements pantry stock for every
-ingredient with "Use from pantry" on — ingredients with the toggle off
-(take-out, a friend's leftovers) are logged for nutrition/history without
-touching inventory at all. If the pantry doesn't have enough of something,
-the decrement clamps to zero instead of going negative or blocking the
-log, with a soft "Insufficient Stock" note naming what came up short.
-Swiping an eaten meal offers "Undo," which restores pantry stock by
+Composing a meal for **today** (or an earlier day) logs it immediately —
+tapping "Done" decrements pantry stock for every ingredient with "Use from
+pantry" on; ingredients with the toggle off (take-out, a friend's
+leftovers) are logged for nutrition/history without touching inventory at
+all. If the pantry doesn't have enough of something, the decrement clamps
+to zero instead of going negative or blocking the log, with a soft
+"Insufficient Stock" note naming what came up short. Composing a meal for
+a **future** day instead plans it — the entry is created but pantry stock
+and today's totals are completely untouched until it's actually ticked
+off. Planned entries render with a visible outline to set them apart from
+filled eaten rows, each with a prominent checkmark to tick it off (the
+same pantry-decrement/insufficient-stock path as logging directly — "the
+same object in different states," not a parallel system) and a soft "needs
+6 eggs, have 4" note when a plan calls for more than the pantry currently
+holds, computed live against current stock without ever reserving or
+holding any of it. Swiping an eaten meal (whether logged directly or
+ticked off from a plan) offers "Undo," which restores pantry stock by
 exactly what was actually taken (not naively the full logged amount, if a
 clamp happened) — including re-creating a pantry item that eating the last
 of it had fully removed. Editing a product's nutrition later never rewrites
@@ -164,16 +176,25 @@ Foodpoint/
                         barcode to ScannerView via a second, sequenced sheet)
     ProductSearchView.swift  Text search sheet; picking a result re-resolves
                               it by barcode through the same path a scan uses
-    MealsView.swift     Meals tab; today a thin list-plus-composer
-                        placeholder — a "+" button opens
-                        MealCompositionEditorView, and "Done" plans the
-                        meal then immediately marks it eaten
-                        (appState.markMealEaten), decrementing pantry
-                        stock for "Use from pantry" ingredients and
-                        surfacing a soft note if stock ran short. Each
-                        eaten row has a swipe-to-undo action
-                        (appState.undoMealEaten) that restores pantry
-                        stock exactly
+    MealsView.swift     Meals tab root; thin NavigationStack shell hosting
+                        DayTimelineView (the tab's actual content)
+    DayTimelineView.swift  The Meals tab home: day timeline with date
+                        navigation, entries grouped by MealSlot, and a
+                        day summary (eaten vs. planned, kept separate). A
+                        "+" menu picks a slot then opens
+                        MealCompositionEditorView; composing for today
+                        logs immediately (plan + appState.markMealEaten,
+                        decrementing pantry for "Use from pantry"
+                        ingredients, soft note if stock ran short) while
+                        composing for a future day only plans it — zero
+                        pantry/totals effect until ticked off. Planned
+                        rows are outlined, get a checkmark tick-off button
+                        (same appState.markMealEaten path as direct
+                        logging) and a live "needs 6 eggs, have 4" note
+                        (appState.stockShortfalls) computed without
+                        reserving stock. Eaten rows keep the swipe-to-undo
+                        action (appState.undoMealEaten) that restores
+                        pantry stock exactly
     MealCompositionEditorView.swift  Ingredient rows + running nutrition
                         footer with a completeness signal; four ingredient
                         sources (pantry/history/scan/search) behind an
@@ -192,9 +213,11 @@ Packages/
                            orchestration in the app: markMealEaten/
                            undoMealEaten (decrement/restore pantry stock for
                            "Use from pantry" ingredients, clamping to zero
-                           and re-creating a fully-depleted item on undo)
-                           and insufficientStockIngredients (for the
-                           soft-note UI)
+                           and re-creating a fully-depleted item on undo),
+                           insufficientStockIngredients (for the soft-note
+                           UI), and stockShortfalls (the day timeline's live
+                           "needs 6 eggs, have 4" signal on a planned entry,
+                           computed without reserving any stock)
     Tests/FoodpointKitTests/  Swift Testing unit tests for the orchestration
                               above only
 
@@ -220,7 +243,12 @@ Packages/
                             makeIngredient (pure grams/nutrition math,
                             shared with the composition editor's live
                             amount editing) and recentlyUsedIngredients/
-                            lastKnownUnit (the "from history" source)
+                            lastKnownUnit (the "from history" source);
+                            entries(on:)/entriesGroupedBySlot(on:) (the day
+                            timeline's queries) and stockShortfalls (the
+                            pure "needs more than the pantry holds" check,
+                            taking availability as a closure so it stays
+                            free of any PantryKit dependency)
       Models/               MealTemplate, MealEntry, TemplateIngredient,
                             LoggedIngredient (+ impliedUnit/
                             impliedNutritionPer100g, for editing a
