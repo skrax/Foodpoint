@@ -66,3 +66,32 @@ public struct TemplateIngredient: Identifiable, Codable, Equatable {
         self.usesFromPantry = usesFromPantry
     }
 }
+
+extension TemplateIngredient {
+    /// Demotes an already-resolved `LoggedIngredient` back into a live-recipe
+    /// row — the conversion behind promoting a meal into a `MealTemplate`
+    /// (MK-4, meals-feature-design.md §7): both the explicit "New Meal"
+    /// editor (whose ingredients come from `MealCompositionEditorView`,
+    /// which produces `LoggedIngredient`s) and "Remember this meal?" (which
+    /// promotes an already-logged entry's ingredients) go through this.
+    ///
+    /// Deliberately drops `nutritionSnapshot` — a template resolves
+    /// nutrition fresh every time it's instantiated
+    /// (`MealStore.instantiate`), never reusing a value frozen at promotion
+    /// time. `unit` is reconstructed via `impliedUnit` since
+    /// `LoggedIngredient` itself only retains the frozen `unitLabel`/
+    /// `gramsResolved`, not a full `ProductUnit`. A fresh `id` is generated
+    /// (the default `UUID()`), independent of `logged.id`, since this is a
+    /// new row, not the same ingredient occurrence.
+    public init(logged: LoggedIngredient) {
+        self.init(
+            barcode: logged.barcode,
+            productName: logged.productName,
+            productBrand: logged.productBrand,
+            imageURL: logged.imageURL,
+            amount: logged.amount,
+            unit: logged.impliedUnit,
+            usesFromPantry: logged.usesFromPantry
+        )
+    }
+}

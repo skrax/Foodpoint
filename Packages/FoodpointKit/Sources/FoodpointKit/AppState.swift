@@ -134,4 +134,40 @@ extension AppState {
             .filter { $0.usesFromPantry && (consumedAmounts[$0.id] ?? $0.amount) < $0.amount }
             .map { $0.productName ?? $0.barcode }
     }
+
+    /// One-tap template logging (MK-4, meals-feature-design.md §7): the
+    /// orchestration-aware counterpart to `MealStore.logTemplate` — that
+    /// method alone can't decrement pantry stock, since `MealKit` never
+    /// touches inventory itself (`MealStore.markEaten`'s own doc comment).
+    /// Instead this follows the exact two-step path ad-hoc logging already
+    /// uses (`MealsView.logAndMarkEaten`: `meals.plan` then
+    /// `markMealEaten(_:)`), just fed by `meals.instantiate(template)`
+    /// instead of a composer's output — so a template tap behaves
+    /// identically to a manually composed and logged meal, pantry
+    /// orchestration included, not a separate code path that could drift
+    /// from it.
+    ///
+    /// `date`/`slot` default to today/the template's own `defaultSlot`,
+    /// matching `MealStore.logTemplate`'s own defaults. Rethrows whatever
+    /// `instantiate` throws (a `ProductResolver` failure — e.g. the network
+    /// call for one of the template's ingredients failed) without planning
+    /// or logging anything in that case.
+    ///
+    /// Not covered by `FoodpointKitTests` the way `markMealEaten`/
+    /// `undoMealEaten` are: `AppState.meals` has no `productResolver`
+    /// injection seam of its own (unlike a directly-constructed `MealStore`
+    /// in `MealKitTests`), so exercising this end-to-end here would require
+    /// a live network call, which this repo's tests never make. The pieces
+    /// it composes — `meals.instantiate`/`logTemplate` (`MealKitTests`'
+    /// `TemplateInstantiationTests`/`TemplatePromotionTests`) and
+    /// `markMealEaten`'s pantry decrement (this package's
+    /// `MealPantryOrchestrationTests`) — are each already covered
+    /// separately; this method is exercised end-to-end by manual
+    /// verification instead.
+    @discardableResult
+    public func logTemplateAndMarkEaten(_ template: MealTemplate, date: Date = Date(), slot: MealSlot? = nil) async throws -> MealEntry? {
+        let ingredients = try await meals.instantiate(template)
+        let planned = meals.plan(name: template.name, date: date, slot: slot ?? template.defaultSlot, ingredients: ingredients, templateID: template.id)
+        return markMealEaten(planned.id)
+    }
 }
