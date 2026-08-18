@@ -71,11 +71,11 @@ isn't asked about again next scan. Manage nutrition variants from the
 "Nutrition" screen, reachable the same way as "Package Sizes".
 
 The Meals tab is a thin placeholder around the meal-composition editor —
-the real day timeline/templates screen is still to come, but the core
-logging loop works end to end: build a meal from ingredient rows, each
-with an amount and a "Use from pantry" toggle (on by default), and a
-running nutrition footer that flags when data is incomplete rather than
-silently under-counting. Ingredients come from four sources — the pantry,
+the real day timeline screen is still to come, but the core logging loop
+works end to end: build a meal from ingredient rows, each with an amount
+and a "Use from pantry" toggle (on by default), and a running nutrition
+footer that flags when data is incomplete rather than silently
+under-counting. Ingredients come from four sources — the pantry,
 previously-logged history (no network call), scanning, or searching by
 name (both reusing the same camera/search flows as the Items tab) — and a
 barcode `MealKit` has never used before gets a quick, ingredient-scoped
@@ -94,6 +94,20 @@ clamp happened) — including re-creating a pantry item that eating the last
 of it had fully removed. Editing a product's nutrition later never rewrites
 an already-eaten meal's numbers: pantry state is live, meal history is a
 frozen snapshot.
+
+A meal you log often can be saved as a **template** and logged again with
+one tap — the fast path templates exist for: tap a memorized meal in the
+"Templates" list and it's logged to today at the current slot, pantry
+decremented, with nutrition re-resolved fresh (never a stale cached
+value) so a later correction to a product's data is reflected. Templates
+get created two ways: explicitly, from a "New Meal" editor that reuses
+the same ingredient-composition UI (also used to "Edit" a template's
+ingredients later); or promoted from something already logged — after an
+ad-hoc log, a "Remember this meal?" prompt offers to save it, reusing the
+scanner's own package-size-naming prompt verbatim (a name field, "Save
+Variant"/"Just This Once"/"Cancel"). Templates can be renamed, edited
+(name, default slot, and ingredients), and deleted from the Templates
+list, all without affecting meals already logged from them.
 
 This is an early solo prototype — expect rough edges and missing features.
 
@@ -164,23 +178,35 @@ Foodpoint/
                         barcode to ScannerView via a second, sequenced sheet)
     ProductSearchView.swift  Text search sheet; picking a result re-resolves
                               it by barcode through the same path a scan uses
-    MealsView.swift     Meals tab; today a thin list-plus-composer
-                        placeholder — a "+" button opens
-                        MealCompositionEditorView, and "Done" plans the
-                        meal then immediately marks it eaten
+    MealsView.swift     Meals tab; a "Templates" row links to
+                        TemplatesListView, then a "+" button opens
+                        MealCompositionEditorView for an ad-hoc meal —
+                        "Done" plans it then immediately marks it eaten
                         (appState.markMealEaten), decrementing pantry
-                        stock for "Use from pantry" ingredients and
-                        surfacing a soft note if stock ran short. Each
-                        eaten row has a swipe-to-undo action
+                        stock for "Use from pantry" ingredients, surfacing
+                        a soft note if stock ran short, then offering
+                        "Remember this meal?" to save it as a template.
+                        Each eaten row has a swipe-to-undo action
                         (appState.undoMealEaten) that restores pantry
                         stock exactly
     MealCompositionEditorView.swift  Ingredient rows + running nutrition
                         footer with a completeness signal; four ingredient
                         sources (pantry/history/scan/search) behind an
-                        "Add Ingredient" menu
+                        "Add Ingredient" menu; reused by TemplateEditorView
+                        for template creation/editing too
     MealIngredientPantryPickerView.swift, MealIngredientHistoryPickerView.swift,
     MealIngredientUnitSetupView.swift  The four sources' picker sheets used
                         by the composition editor
+    TemplatesListView.swift  Templates list: tap a row to log it in one
+                        tap (TemplateLogButton), "+" to create one, swipe/
+                        context menu to rename, edit, or delete
+    TemplateEditorView.swift  "New Meal"/"Edit" template form (name,
+                        default slot, ingredients via
+                        MealCompositionEditorView)
+    TemplateLogButton.swift  Reusable one-tap-log control with its own
+                        loading/error state
+    RememberMealPrompt.swift  The "Remember this meal?" prompt (reuses
+                        ScannerView's package-size-naming alert verbatim)
   Scanners/             Barcode scanning (AVFoundation-backed UIViewRepresentable)
 
 Packages/
@@ -192,9 +218,12 @@ Packages/
                            orchestration in the app: markMealEaten/
                            undoMealEaten (decrement/restore pantry stock for
                            "Use from pantry" ingredients, clamping to zero
-                           and re-creating a fully-depleted item on undo)
-                           and insufficientStockIngredients (for the
-                           soft-note UI)
+                           and re-creating a fully-depleted item on undo),
+                           insufficientStockIngredients (for the soft-note
+                           UI), and logTemplateAndMarkEaten (one-tap
+                           template logging: instantiate, plan, then
+                           markMealEaten, so it decrements pantry
+                           identically to a manual log)
     Tests/FoodpointKitTests/  Swift Testing unit tests for the orchestration
                               above only
 
@@ -215,17 +244,21 @@ Packages/
     Sources/MealKit/
       MealStore.swift       Template CRUD; entry CRUD/lifecycle (log
                             directly as eaten, plan for later, markEaten,
-                            undo); day/range nutrition aggregation with
-                            completeness reporting; consumption stats;
-                            makeIngredient (pure grams/nutrition math,
-                            shared with the composition editor's live
-                            amount editing) and recentlyUsedIngredients/
-                            lastKnownUnit (the "from history" source)
-      Models/               MealTemplate, MealEntry, TemplateIngredient,
-                            LoggedIngredient (+ impliedUnit/
-                            impliedNutritionPer100g, for editing a
-                            historical ingredient's amount with no network
-                            call), MealSlot, MealStatus,
+                            undo); logTemplate/planTemplate (instantiate a
+                            template fresh, then log/plan it); day/range
+                            nutrition aggregation with completeness
+                            reporting; consumption stats; makeIngredient
+                            (pure grams/nutrition math, shared with the
+                            composition editor's live amount editing) and
+                            recentlyUsedIngredients/lastKnownUnit (the
+                            "from history" source)
+      Models/               MealTemplate, MealEntry, TemplateIngredient
+                            (+ init(logged:), demoting a LoggedIngredient
+                            back into a template row for "Remember this
+                            meal?"/template editing), LoggedIngredient
+                            (+ impliedUnit/impliedNutritionPer100g, for
+                            editing a historical ingredient's amount with
+                            no network call), MealSlot, MealStatus,
                             NutritionCompleteness/DayNutritionTotal/
                             RangeNutritionSummary/ConsumptionStats
     Tests/MealKitTests/    Swift Testing unit tests
