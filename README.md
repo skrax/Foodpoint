@@ -250,9 +250,16 @@ Foodpoint/
                         that restores pantry stock exactly
     MealCompositionEditorView.swift  Ingredient rows + running nutrition
                         footer with a completeness signal; four ingredient
-                        sources (pantry/history/scan/search) behind an
-                        "Add Ingredient" menu; reused by TemplateEditorView
-                        for template creation/editing too
+                        sources (pantry/history/scan/search) behind a
+                        centered, prominent "Add Ingredient" bottom-bar
+                        button (FX-3: no longer a plain corner icon, so it
+                        reads as the obvious next tap after adding an
+                        ingredient); reused by TemplateEditorView for
+                        template creation/editing too. Tapping "Done" with
+                        exactly one ingredient shows a "Finish with just 1
+                        ingredient?" confirmation (FX-3, catches the
+                        add-vs-finish mix-up right when it tends to happen)
+                        — 0 or 2+ ingredients finish immediately, unchanged
     MealIngredientPantryPickerView.swift, MealIngredientHistoryPickerView.swift,
     MealIngredientUnitSetupView.swift  The four sources' picker sheets used
                         by the composition editor

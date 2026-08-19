@@ -171,6 +171,21 @@ dependency" below).
       ("New Meal"/"Edit Meal") replaces what used to be a hardcoded
       `.navigationTitle("New Meal")`. `formattedAmount` became a
       `private static func` so the new init can call it before `self` exists.
+      **FX-3** (physical-device testing) fixed a real UX trap: "Add
+      Ingredient" (bottom-bar) and "Done" (top-right `.confirmationAction`,
+      finishes/saves the whole meal) used to be two anonymous corner
+      buttons distinguished only by screen position, so the instinctive tap
+      after adding a first ingredient — the top-right corner, to "close
+      this and add another" — actually finished the meal instead. Fixed two
+      ways, combined, neither adding friction to the common multi-ingredient
+      case: (1) "Add Ingredient" moved from a left-aligned icon+text bottom-
+      bar item to a centered `.buttonStyle(.borderedProminent)` button, so
+      it visually reads as *the* next action; (2) the "Done" button's
+      handler (`finishOrConfirmIfSingleIngredient()`) shows a
+      `.confirmationDialog` ("Finish with just 1 ingredient?") only when
+      `rows.count == 1` — the exact moment the mix-up tends to happen — with
+      "Finish Meal"/"Keep Adding" options; 0 or 2+ ingredients still finish
+      on a single tap, unchanged from before.
     - `MealIngredientPantryPickerView.swift`, `MealIngredientHistoryPickerView.swift`,
       `MealIngredientUnitSetupView.swift` (MK-2) — the four sources'
       picker sheets described above.

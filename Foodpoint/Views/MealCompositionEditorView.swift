@@ -35,6 +35,20 @@ import FoodpointKit
 /// ingredient before (`appState.meals.lastKnownUnit(forBarcode:) == nil`) —
 /// those get `MealIngredientUnitSetupView`'s minimal weight/count + label
 /// prompt, scoped to this ingredient only (§6.3), before a row is added.
+///
+/// FX-3 (physical-device testing): "Add Ingredient" and "Done" used to read
+/// as two anonymous corner buttons — bottom-left-ish and top-right — with
+/// nothing but position telling them apart, so the instinctive tap after
+/// adding a first ingredient (the top-right corner, to "close this step and
+/// add another") actually finished and saved the whole meal instead. Fixed
+/// two ways, combined: (1) "Add Ingredient" moved to a centered, filled
+/// `.borderedProminent` bottom-bar button, so it visually reads as *the*
+/// next action rather than a small icon in the corner; (2) tapping "Done"
+/// with exactly one ingredient shows a cheap confirmation
+/// (`isShowingSingleIngredientConfirmation`) — one ingredient is the exact
+/// moment the mistake happens, so this catches it without adding any
+/// friction to the common case of composing several ingredients and
+/// finishing normally (2+ ingredients finish immediately, same as before).
 struct MealCompositionEditorView: View {
     /// Called with the composed ingredient list when "Done" is tapped —
     /// empty if nothing was added. Not called on "Cancel". Defaults to a
@@ -77,6 +91,11 @@ struct MealCompositionEditorView: View {
     /// A freshly-fetched product with no known unit yet, awaiting the
     /// minimal unit-setup prompt (§6.3) before it can become a row.
     @State private var pendingUnitSetupProduct: Product?
+
+    /// Gates the FX-3 "finish with just one ingredient?" safety check — set
+    /// by the "Done" button when `rows.count == 1`; see `finish()` and the
+    /// `.confirmationDialog` in `body`.
+    @State private var isShowingSingleIngredientConfirmation = false
 
     /// One ingredient row's editable state: the current `LoggedIngredient`
     /// snapshot plus the raw text of its amount field, kept separate so an
@@ -134,11 +153,11 @@ struct MealCompositionEditorView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
-                        onDone(rows.map(\.ingredient))
-                        dismiss()
+                        finishOrConfirmIfSingleIngredient()
                     }
                 }
                 ToolbarItemGroup(placement: .bottomBar) {
+                    Spacer()
                     Menu {
                         Button {
                             isShowingPantryPicker = true
@@ -161,8 +180,9 @@ struct MealCompositionEditorView: View {
                             Label("Search by Name", systemImage: "magnifyingglass")
                         }
                     } label: {
-                        Label("Add Ingredient", systemImage: "plus.circle")
+                        Label("Add Ingredient", systemImage: "plus.circle.fill")
                     }
+                    .buttonStyle(.borderedProminent)
                     Spacer()
                 }
             }
@@ -204,7 +224,39 @@ struct MealCompositionEditorView: View {
             } message: { message in
                 Text(message)
             }
+            .confirmationDialog(
+                "Finish with just 1 ingredient?",
+                isPresented: $isShowingSingleIngredientConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Finish Meal") { finish() }
+                Button("Keep Adding", role: .cancel) {}
+            } message: {
+                Text("This meal only has one ingredient so far. Tap \"Add Ingredient\" below to add more, or finish if that's everything.")
+            }
         }
+    }
+
+    // MARK: - Finishing
+
+    /// The "Done" button's action (FX-3): with exactly one ingredient —
+    /// the exact moment the add-vs-finish mix-up this fix targets tends to
+    /// happen — asks for confirmation instead of finishing immediately.
+    /// Zero ingredients (nothing to accidentally lose) and two-or-more
+    /// (a deliberately composed meal) both finish straight away, unchanged
+    /// from before this fix, so the common multi-ingredient case never sees
+    /// this extra step.
+    private func finishOrConfirmIfSingleIngredient() {
+        if rows.count == 1 {
+            isShowingSingleIngredientConfirmation = true
+        } else {
+            finish()
+        }
+    }
+
+    private func finish() {
+        onDone(rows.map(\.ingredient))
+        dismiss()
     }
 
     // MARK: - Row UI
