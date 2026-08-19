@@ -277,7 +277,20 @@ dependency" below).
       deletion restores real pantry stock), matching `TemplatesListView`'s
       own `templatePendingDeletion` confirmation pattern. `MealDetailView`'s
       own toolbar "Delete" button reaches an identically-shaped
-      `requestDelete` flow.
+      `requestDelete` flow. **FX-6**: composing an ad-hoc meal used to save
+      it under a hardcoded `"Ad-hoc Meal"`/`"Planned Meal"` name — the
+      composer's `onDone` now stashes the composed ingredients
+      (`pendingComposedIngredients`) and shows `NameMealPrompt.swift`'s
+      "Name This Meal" alert (`isShowingNamePrompt`, see that file's own
+      bullet below) before the entry is actually persisted, rather than
+      adding a name field to `MealCompositionEditorView` itself (which
+      `TemplateEditorView` also reuses purely for ingredient composition,
+      alongside its own separate template-name `TextField` — a second name
+      field there would be redundant). `addEntry(name:ingredients:slot:)`
+      trims the typed name and falls back to `"Ad-hoc Meal"`/`"Planned
+      Meal"` only when it's left blank, so a blank name never blocks the
+      save; template-instantiated entries are unaffected, still inheriting
+      the template's own name.
     - `DayTotalsHeaderView.swift` (MK-6) — day totals header: eaten
       calories/macros with a completeness signal (§8.2), plus planned
       calories as a separate "planned +X" projection line
@@ -410,6 +423,23 @@ dependency" below).
       they never show simultaneously. Factored into its own file/
       `ViewModifier` rather than inlined, the same "keep the host view's
       diff small" reason as `TemplatesListView`/`TemplateEditorView` above.
+    - `NameMealPrompt.swift` (FX-6) — `NameMealPromptModifier` + a
+      `View.nameMealPrompt(...)` extension: the "Name This Meal" alert shown
+      right after `MealCompositionEditorView`'s `onDone` fires for an ad-hoc
+      meal, before it's persisted — same `alert(presenting:)` + `TextField`
+      shape `RememberMealPromptModifier` established, but with a single
+      "Save" button rather than three, since (unlike the remember prompt,
+      which offers to *additionally* save a template after a meal that's
+      already been logged) this alert **is** the commit point for a meal
+      that hasn't been saved yet; leaving the field blank and tapping
+      "Save" still saves, via the caller's trim-and-fallback logic
+      (`DayTimelineView.addEntry(name:ingredients:slot:)`). Factored into
+      its own file/`ViewModifier` for the usual "keep the host view's diff
+      small" reason, and also, concretely, because inlining this alert
+      directly into `DayTimelineView`'s already-long modifier chain pushed
+      the Swift compiler's type-checker over its complexity budget ("unable
+      to type-check this expression in reasonable time") and broke the
+      build — extracting it here fixed that too.
   - `Scanners/` — Barcode scanning. Wraps `AVFoundation`
     (`AVCaptureSession`) directly via `UIViewRepresentable`; not a
     SwiftUI-native camera API, and specifically not VisionKit's

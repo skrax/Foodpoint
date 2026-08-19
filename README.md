@@ -284,7 +284,12 @@ Foodpoint/
                         never touched stock); an eaten entry's deletion
                         restores pantry stock, so it confirms first via an
                         alert, matching TemplatesListView's own
-                        delete-with-confirmation pattern
+                        delete-with-confirmation pattern. Composing an
+                        ad-hoc meal (FX-6) now shows a "Name This Meal"
+                        prompt (NameMealPrompt.swift) before saving, instead
+                        of the old hardcoded "Ad-hoc Meal"/"Planned Meal"
+                        name — left blank, it still saves under that same
+                        fallback name rather than blocking the save
     MealCompositionEditorView.swift  Ingredient rows + running nutrition
                         footer with a completeness signal; four ingredient
                         sources (pantry/history/scan/search) behind a
@@ -316,6 +321,16 @@ Foodpoint/
     RememberMealPrompt.swift  (MK-4) The "Remember this meal?" prompt
                         (reuses ScannerView's package-size-naming alert
                         verbatim)
+    NameMealPrompt.swift  (FX-6) The "Name This Meal" prompt shown right
+                        after composing an ad-hoc meal, before it's saved;
+                        same alert+TextField shape as RememberMealPrompt but
+                        a single "Save" button (this alert is the commit
+                        point, not an optional add-on) — a blank name still
+                        saves, via DayTimelineView's trim-and-fallback logic.
+                        Factored into its own ViewModifier partly to keep
+                        DayTimelineView's body small and partly because
+                        inlining it there hit a real Swift type-checker
+                        complexity limit and broke the build
     DayTotalsHeaderView.swift  (MK-6) Day totals header: eaten
                         calories/macros with a completeness signal, plus a
                         "planned +X" projection when anything's planned for
