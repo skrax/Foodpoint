@@ -430,17 +430,17 @@ struct ScannerView: View {
         "\(variantDescription(unit)) isn't a saved package size yet. Remember it so you can pick it again on a future scan?"
     }
 
-    /// Saves the current product, then immediately reopens the scanner for
-    /// the next one. For a known barcode whose edited package size doesn't
-    /// match anything already remembered, defers to `confirmSave` via the
-    /// variant-prompt dialog instead of saving immediately.
+    /// Saves the current product, then advances past it via
+    /// `finishAfterSave()`. For a known barcode whose edited package size
+    /// doesn't match anything already remembered, defers to `confirmSave`
+    /// via the variant-prompt dialog instead of saving immediately.
     private func save() {
         guard let product = scannedProduct else { return }
 
         if isNewProduct {
             appState.pantry.addProduct(product, unit: unitFromFields())
             didSave = true
-            scanAgain()
+            finishAfterSave()
             return
         }
 
@@ -448,7 +448,7 @@ struct ScannerView: View {
         if let matched = matchingKnownVariant(candidate, for: product.id) {
             appState.pantry.addProduct(product, unit: matched)
             didSave = true
-            scanAgain()
+            finishAfterSave()
         } else {
             pendingUnit = candidate
             isShowingVariantPrompt = true
@@ -468,17 +468,41 @@ struct ScannerView: View {
         didSave = true
         pendingUnit = nil
         pendingVariantName = ""
-        scanAgain()
+        finishAfterSave()
     }
 
-    /// Reopens the camera for the next scan. Always the camera now —
-    /// `ScannerView` is scan-only, so there's no other acquisition method
-    /// to return to even when this presentation was entered via
-    /// `.resolved(barcode:)` (a search-originated save completing here
-    /// still just goes back to scanning, the same as any other save).
+    /// Reopens the camera for the next scan. Only appropriate for a
+    /// camera-originated presentation (`entryPoint` is `.scan` or `nil`,
+    /// i.e. the Scan tab root) — call sites that follow an explicit,
+    /// user-labeled "scan" action (the "Scan Without Saving"/"Scan Food
+    /// Barcode" buttons) call this directly regardless of `entryPoint`,
+    /// since the user tapped a button that says "scan". Call sites that
+    /// follow a successful *save* should go through `finishAfterSave()`
+    /// instead, which routes `.resolved(barcode:)` presentations away from
+    /// this function entirely (FX-2) — see its doc comment.
     private func scanAgain() {
         errorMessage = nil
         isShowingScanner = true
+    }
+
+    /// What to do right after a successful save, as a function of how this
+    /// presentation was entered (FX-2). A camera-originated presentation
+    /// (`entryPoint` is `.scan`, or `nil` for the Scan tab root) reopens the
+    /// camera via `scanAgain()`, unchanged from before FX-2 — that's the
+    /// expected "ready for the next scan" behavior. A `.resolved(barcode:)`
+    /// presentation (search-originated: the user picked "Search by Name" in
+    /// `ItemsView`, never touched the camera, and has no reason to expect
+    /// one to pop up) instead dismisses the sheet, landing back on
+    /// `ItemsView` where the newly saved item now appears in the list —
+    /// `scanAgain()` used to run unconditionally here too, which is exactly
+    /// the "camera reopens after a search save" bug this fixes.
+    private func finishAfterSave() {
+        switch entryPoint {
+        case .resolved:
+            dismiss()
+        case .scan, nil:
+            scanAgain()
+        }
     }
 
     /// Immediately acts on `entryPoint` when presented from elsewhere (from
