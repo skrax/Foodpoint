@@ -2,7 +2,7 @@
 id: FX-4
 epic: post-testing-fixes
 title: Let a meal's ingredients be edited after it's logged or planned
-status: ready
+status: in-progress
 depends_on: [MK-3]
 design_doc: null
 ---

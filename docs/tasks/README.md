@@ -121,19 +121,27 @@ built (`ItemsView` → `ProductSearchView` → `ScannerView` handoff), plus
 five usability/functionality gaps in the Meals feature Epic 3 built —
 editing/deleting/naming a meal, the composition editor's confusing
 add-vs-finish buttons, and an unclear one-tap-template-log affordance.
-Nothing here blocks anything else; all seven are independent of each
-other, though FX-1/FX-2 touch the same handoff code and may be easiest to
-fix together.
+All seven are implemented, tested where automatable, and merged — none
+blocked on each other, though FX-1/FX-2 were fixed together since they're
+in the same handoff code. Every one is `in-progress` rather than `done`:
+each was built and merged in its own isolated Simulator session, and every
+single one hit the same wall trying to manually verify — either a genuine
+input-focus failure (`ProductSearchView`'s search field never accepting
+taps/text) or, worse, text going in but Open Food Facts search coming back
+empty despite the network path itself working (confirmed via `curl` from
+the same session). None of the seven fixes has been exercised end-to-end
+on a real device yet — that's the next step for all of them, same as
+Epic 3's MK-3/5/6 before their physical-device confirmation.
 
 | ID | Title | Status | Depends on |
 |----|-------|--------|-----------|
-| [FX-1](epic-4-post-testing-fixes/FX-1-fix-blank-screen-after-search-acquisition.md) | Fix blank screen after adding a product via search | ready | UX-2 |
-| [FX-2](epic-4-post-testing-fixes/FX-2-fix-camera-reopens-after-search-save.md) | Don't reopen the camera after saving a product added via search | ready | UX-2 |
-| [FX-3](epic-4-post-testing-fixes/FX-3-composition-editor-add-vs-done-clarity.md) | Make "add another ingredient" vs "finish the meal" unambiguous | ready | MK-2 |
-| [FX-4](epic-4-post-testing-fixes/FX-4-edit-meal-ingredients.md) | Let a meal's ingredients be edited after it's logged or planned | ready | MK-3 |
-| [FX-5](epic-4-post-testing-fixes/FX-5-delete-meals.md) | Let a logged or planned meal be deleted | ready | MK-3 |
-| [FX-6](epic-4-post-testing-fixes/FX-6-name-meals.md) | Let a meal be given a real name instead of a hardcoded placeholder | ready | MK-3 |
-| [FX-7](epic-4-post-testing-fixes/FX-7-clarify-template-instantiation-affordance.md) | Make logging a template from the Templates list self-explanatory | ready | MK-4 |
+| [FX-1](epic-4-post-testing-fixes/FX-1-fix-blank-screen-after-search-acquisition.md) | Fix blank screen after adding a product via search | in-progress | UX-2 |
+| [FX-2](epic-4-post-testing-fixes/FX-2-fix-camera-reopens-after-search-save.md) | Don't reopen the camera after saving a product added via search | in-progress | UX-2 |
+| [FX-3](epic-4-post-testing-fixes/FX-3-composition-editor-add-vs-done-clarity.md) | Make "add another ingredient" vs "finish the meal" unambiguous | in-progress | MK-2 |
+| [FX-4](epic-4-post-testing-fixes/FX-4-edit-meal-ingredients.md) | Let a meal's ingredients be edited after it's logged or planned | in-progress | MK-3 |
+| [FX-5](epic-4-post-testing-fixes/FX-5-delete-meals.md) | Let a logged or planned meal be deleted | in-progress | MK-3 |
+| [FX-6](epic-4-post-testing-fixes/FX-6-name-meals.md) | Let a meal be given a real name instead of a hardcoded placeholder | in-progress | MK-3 |
+| [FX-7](epic-4-post-testing-fixes/FX-7-clarify-template-instantiation-affordance.md) | Make logging a template from the Templates list self-explanatory | in-progress | MK-4 |
 
 ## Bugs
 
@@ -170,21 +178,46 @@ app has since been run on the physical device and the core loops
 closing out all three.
 
 **BUG-1 remains `ready`, unresolved as a root-cause investigation** — but
-no longer blocking anything, since the physical device doesn't hit
-whatever it was seeing in the Simulator sessions above. Its own spike
-found no reproduction and attributed the earlier Simulator hangs to
-testing-tooling artifacts; that same physical-device session did turn up a
-**related** bug in the same general code area (**FX-1**, a
-sequenced/stacked sheet handoff off `ItemsView`) — whether it shares a
-root cause with BUG-1 is still open and worth settling, but it's tracked
-as its own, narrower ticket under Epic 4 rather than folded into BUG-1's
-broader "any input field, anywhere" scope.
+no longer blocking Epic 3, since the physical device didn't hit whatever
+the Simulator sessions above were seeing. Its own spike found no
+reproduction and attributed the earlier Simulator hangs to testing-tooling
+artifacts; a later physical-device session did turn up a **related** bug
+in the same general code area (**FX-1**), which turned out to be its own,
+distinct, now-fixed root cause (a sheet-presentation race in
+`ItemsView.swift`, not an input-focus failure) — so it's resolved on its
+own terms rather than folded into BUG-1. What BUG-1 hasn't gotten yet is
+its own literal acceptance criteria walked through end to end (reproduce
+or rule out on device, narrow the trigger) — worth doing at some point to
+close it out formally, but nothing is currently blocked on it.
 
-**Epic 4 is new**, filed directly from that physical-device session: two
-bugs in the search-acquisition flow Epic 2 built (blank screen after
-adding via search, camera reopening after a search-originated save — both
-traced to specific code in `ItemsView.swift`/`ScannerView.swift`, see
-FX-1/FX-2), and five Meals-feature usability/functionality gaps (FX-3
-through FX-7 — the composition editor's add-vs-finish button confusion,
-missing edit/delete/naming for meals, and an unclear template-log
-affordance). All seven are `ready` and independent of each other.
+**Epic 4 is implemented and merged — all seven tasks (FX-1 through FX-7)
+are `in-progress`, not yet `done`.** Every fix landed with automated test
+coverage where the change was testable that way (182 tests total across
+all four packages: MealKit 75, FoodpointKit 40, PantryKit 31,
+FoodFoundation 36) and the app builds clean, but **every single FX task
+hit a wall trying to manually verify in the Simulator** — the exact same
+`ProductSearchView` input problem, now recurring across roughly a dozen
+independent sessions this week. Two flavors showed up: the field simply
+never accepting taps/focus (most sessions), or — new this round — text
+going in and a real network request firing, but Open Food Facts search
+coming back with zero results even though the same query succeeds via
+`curl` from the same machine. That second variant means this may no
+longer be purely an input-delivery problem; it's worth someone checking
+whether the Simulator's network path itself is broken in this environment,
+separately from BUG-1's original "taps don't register" framing.
+
+What actually landed, code-wise: FX-1/FX-2 fixed the search-acquisition
+blank-screen and camera-reopen bugs in `ItemsView.swift`/`ScannerView.swift`
+(FX-1's root cause — a two-sequenced-`.sheet` race — is now understood and
+fixed, not just guessed at). FX-3 made the composition editor's
+add-ingredient/finish-meal actions harder to confuse. FX-4 and FX-5 gave
+`FoodpointKit.AppState` proper edit/delete orchestration for logged and
+planned meals, sharing a single extracted `restorePantryConsumption`
+helper with `undoMealEaten` rather than tripling that logic. FX-6 lets
+ad-hoc meals get a real name instead of the "Ad-hoc Meal"/"Planned Meal"
+placeholder. FX-7 replaced the templates list's unexplained bolt icon with
+a "+"-styled slot-picker menu matching `DayTimelineView`'s own pattern.
+
+**Next step for all seven**: the same physical-device walkthrough that
+closed out MK-3/MK-5/MK-6 — confirm each fix actually works when tapped
+through on a real device, then flip its `status` to `done`.

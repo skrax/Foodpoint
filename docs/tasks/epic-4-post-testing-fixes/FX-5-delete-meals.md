@@ -2,7 +2,7 @@
 id: FX-5
 epic: post-testing-fixes
 title: Let a logged or planned meal be deleted
-status: ready
+status: in-progress
 depends_on: [MK-3]
 design_doc: null
 ---

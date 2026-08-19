@@ -2,7 +2,7 @@
 id: FX-3
 epic: post-testing-fixes
 title: Make the composition editor's "add another ingredient" vs "finish the meal" actions unambiguous
-status: ready
+status: in-progress
 depends_on: [MK-2]
 design_doc: null
 ---

@@ -2,7 +2,7 @@
 id: FX-2
 epic: post-testing-fixes
 title: Don't reopen the camera after saving a product added via search
-status: ready
+status: in-progress
 depends_on: [UX-2]
 design_doc: null
 ---

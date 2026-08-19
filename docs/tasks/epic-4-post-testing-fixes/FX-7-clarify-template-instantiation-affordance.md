@@ -2,7 +2,7 @@
 id: FX-7
 epic: post-testing-fixes
 title: Make logging a template from the Templates list self-explanatory
-status: ready
+status: in-progress
 depends_on: [MK-4]
 design_doc: null
 ---

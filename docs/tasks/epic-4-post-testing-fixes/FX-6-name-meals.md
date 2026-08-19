@@ -2,7 +2,7 @@
 id: FX-6
 epic: post-testing-fixes
 title: Let a meal be given a real name instead of a hardcoded placeholder
-status: ready
+status: in-progress
 depends_on: [MK-3]
 design_doc: null
 ---

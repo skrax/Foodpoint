@@ -2,7 +2,7 @@
 id: FX-1
 epic: post-testing-fixes
 title: Fix blank screen after adding a product via search
-status: ready
+status: in-progress
 depends_on: [UX-2]
 design_doc: null
 ---
