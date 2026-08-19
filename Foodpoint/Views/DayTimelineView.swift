@@ -89,6 +89,27 @@ import FoodpointKit
 /// `TemplatesListView`'s own `templatePendingDeletion` confirmation pattern
 /// for template deletion. `MealDetailView`'s own toolbar "Delete" button
 /// reaches the identical `requestDelete`-shaped flow.
+///
+/// **FX-6 addition**: composing an ad-hoc meal used to save it under a
+/// hardcoded `"Ad-hoc Meal"`/`"Planned Meal"` name with no way to change it.
+/// Rather than adding a name field directly to `MealCompositionEditorView`
+/// (which `TemplateEditorView` also reuses purely for ingredient
+/// composition, alongside its own separate name `TextField` for the
+/// template itself — a second name field there would be redundant and
+/// confusing), the composer's `onDone` now stashes the composed ingredients
+/// (`pendingComposedIngredients`) and shows `NameMealPrompt.swift`'s
+/// lightweight "Name This Meal" alert (`isShowingNamePrompt`) — factored
+/// into its own `ViewModifier` both to match `RememberMealPromptModifier`'s
+/// established shape and, concretely, to keep this view's own `body` under
+/// the Swift compiler's type-checking complexity budget (inlining it here
+/// pushed `body` over that limit and broke the build). Its "Save" button is
+/// the actual commit point — `addEntry(name:ingredients:slot:)` trims the
+/// typed name and falls back to `"Ad-hoc Meal"`/`"Planned Meal"` (matching
+/// whichever the old unconditional default used to be, by day) only when
+/// the field is left blank, so a blank name never blocks the save.
+/// Template-instantiated entries are untouched by any of this — they still
+/// inherit the template's own name via
+/// `logTemplate`/`planTemplate`/`logTemplateAndMarkEaten`.
 struct DayTimelineView: View {
     @Environment(AppState.self) private var appState
 
@@ -113,6 +134,15 @@ struct DayTimelineView: View {
     @State private var pendingRememberIngredients: [LoggedIngredient]?
     @State private var isShowingRememberPrompt = false
     @State private var rememberMealName = ""
+
+    /// The just-composed ingredients, held from the moment the composer's
+    /// `onDone` fires until the "Name This Meal" prompt (FX-6) is dismissed
+    /// via its "Save" button — `presenting:` data for that alert, the same
+    /// pattern `pendingRememberIngredients` above uses for the (separate,
+    /// later) remember prompt.
+    @State private var pendingComposedIngredients: [LoggedIngredient]?
+    @State private var isShowingNamePrompt = false
+    @State private var composedMealName = ""
 
     /// The id of the entry currently pushed to `MealDetailView`, or `nil`
     /// when the timeline itself is on screen. Keyed on `id` rather than the
@@ -213,7 +243,9 @@ struct DayTimelineView: View {
         .sheet(isPresented: $isShowingComposer) {
             MealCompositionEditorView { ingredients in
                 guard !ingredients.isEmpty else { return }
-                addEntry(ingredients: ingredients, slot: pendingSlot)
+                pendingComposedIngredients = ingredients
+                composedMealName = ""
+                isShowingNamePrompt = true
             }
         }
         .navigationDestination(item: $selectedEntryID) { entryID in
@@ -243,6 +275,17 @@ struct DayTimelineView: View {
         } message: { entry in
             Text("\"\(entry.name)\" will be removed and its pantry stock restored.")
         }
+        .nameMealPrompt(
+            isPresented: $isShowingNamePrompt,
+            pendingIngredients: pendingComposedIngredients,
+            name: $composedMealName,
+            isFutureDay: isFutureDay,
+            onSave: { ingredients in
+                addEntry(name: composedMealName, ingredients: ingredients, slot: pendingSlot)
+                pendingComposedIngredients = nil
+                composedMealName = ""
+            }
+        )
         .rememberMealPrompt(
             isPresented: $isShowingRememberPrompt,
             pendingIngredients: pendingRememberIngredients,
@@ -357,22 +400,31 @@ struct DayTimelineView: View {
     }
 
     /// Turns a composed ingredient list into a `MealEntry` on `selectedDate`
-    /// at `slot`. A future day only plans it (`appState.meals.plan`) and
-    /// stops — no pantry orchestration runs, so this has zero effect on
-    /// stock or on today's totals until a later tick-off
-    /// (meals-feature-design.md §5), and never offers to remember it as a
-    /// template (that's only for something actually eaten). Today or an
-    /// earlier day goes through the same two-step plan-then-mark-eaten path
-    /// MK-3 built for the original ad-hoc composer, unchanged, including its
-    /// soft insufficient-stock note — and then offers "Remember this meal?"
-    /// (MK-4), sequenced after the stock alert if both apply.
-    private func addEntry(ingredients: [LoggedIngredient], slot: MealSlot) {
+    /// at `slot`, named `name` (FX-6) — trimmed, and falling back to
+    /// `"Planned Meal"`/`"Ad-hoc Meal"` (by day, matching what those names
+    /// used to be unconditionally, before this task added the "Name This
+    /// Meal" prompt that supplies `name`) only when the trimmed result is
+    /// empty, so a user who leaves the field blank still gets a successful
+    /// save rather than a blocked one. A future day only plans it
+    /// (`appState.meals.plan`) and stops — no pantry orchestration runs, so
+    /// this has zero effect on stock or on today's totals until a later
+    /// tick-off (meals-feature-design.md §5), and never offers to remember
+    /// it as a template (that's only for something actually eaten). Today or
+    /// an earlier day goes through the same two-step plan-then-mark-eaten
+    /// path MK-3 built for the original ad-hoc composer, unchanged, including
+    /// its soft insufficient-stock note — and then offers "Remember this
+    /// meal?" (MK-4), sequenced after the stock alert if both apply.
+    private func addEntry(name: String, ingredients: [LoggedIngredient], slot: MealSlot) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+
         if isFutureDay {
-            appState.meals.plan(name: "Planned Meal", date: selectedDate, slot: slot, ingredients: ingredients)
+            let resolvedName = trimmedName.isEmpty ? "Planned Meal" : trimmedName
+            appState.meals.plan(name: resolvedName, date: selectedDate, slot: slot, ingredients: ingredients)
             return
         }
 
-        let planned = appState.meals.plan(name: "Ad-hoc Meal", date: selectedDate, slot: slot, ingredients: ingredients)
+        let resolvedName = trimmedName.isEmpty ? "Ad-hoc Meal" : trimmedName
+        let planned = appState.meals.plan(name: resolvedName, date: selectedDate, slot: slot, ingredients: ingredients)
         appState.markMealEaten(planned.id)
         pendingRememberIngredients = ingredients
         if !presentInsufficientStockAlertIfNeeded(for: planned.id) {
