@@ -139,6 +139,47 @@ via this Simulator tooling right now — **physical-device verification is
 needed** to close this criterion, same conclusion BUG-1 already reached
 for its own acceptance criteria.
 
+## Findings, part 2 — the real bug (2026-08-19, physical device)
+
+The `ActiveSheet`/`.sheet(item:)` fix above was necessary but not
+sufficient. Physical-device testing (the first real test of this flow)
+turned up a second, more severe bug in the same code path, reported as:
+"the dialog to configure the item is closed without user action and you
+return to 'no items'" — the configure screen never appeared at all,
+landing straight back on `ItemsView` with nothing saved.
+
+**Root cause**: `Foodpoint/Views/ProductSearchView.swift`'s `resultRow`
+`.onTapGesture` called `onSelect(product.id)` immediately followed by its
+own `dismiss()`. In `ItemsView`, `onSelect` reassigns the shared
+`activeSheet` state from `.search` to `.resolved(barcode:)` — the whole
+point of the FX-1 fix above, letting SwiftUI own that transition as one
+atomic item-switch. But `dismiss()`, called on the very next line, is
+`ProductSearchView`'s own `@Environment(\.dismiss)`, tied to that same
+`.sheet(item: $activeSheet)` presentation — calling it right after the
+reassignment races that transition and wins, snapping `activeSheet` back
+to `nil` before the `.resolved` sheet ever gets presented. The sheet just
+closes. Nothing about the `ActiveSheet` enum/single-`.sheet(item:)`
+mechanism was wrong; a leftover call from the pre-FX-1 architecture (where
+`ProductSearchView` really did need to dismiss itself, and `ItemsView`
+picked up the staged barcode from `onDismiss`) was actively fighting it.
+
+`MealCompositionEditorView`'s own use of `ProductSearchView` masked this:
+it already sets its own `isShowingSearch = false` inside `onSelect`, so the
+internal `dismiss()` there was always redundant, not harmful (both close
+the same sheet, no competing reassignment to undo) — which is why this
+didn't surface during that flow's testing.
+
+**Fix**: removed the `dismiss()` call from `resultRow`'s `onTapGesture`
+entirely (`ProductSearchView.swift`). `onSelect` alone is now the whole
+contract — every caller (both current ones) already handles its own
+dismissal inside `onSelect`, so this is a pure bug fix with no behavior
+change for `MealCompositionEditorView`. Documented the contract in
+`ProductSearchView`'s type-level doc comment so a future caller doesn't
+reintroduce the same race. Build succeeds
+(`xcodebuild ... -destination 'generic/platform=iOS Simulator' build`).
+Not yet re-verified on the physical device — that's the next step, same
+as the rest of this ticket's still-open manual-verification criterion.
+
 ## Definition of done
 
 Root cause fixed and verified on the physical device across several

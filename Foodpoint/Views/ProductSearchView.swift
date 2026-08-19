@@ -7,6 +7,20 @@ import FoodpointKit
 /// result hands its barcode back to the caller rather than the already-
 /// fetched `Product`, so it re-resolves through the exact same path a scan
 /// would (`ScannerView.fetchFoodData`) instead of a separate code path.
+///
+/// **This view never dismisses itself on selection** — picking a result
+/// only calls `onSelect`; the caller decides what "done" means and closes
+/// this sheet however that requires. This was a real bug: an earlier
+/// version called `dismiss()` right after `onSelect` unconditionally, which
+/// worked for `MealCompositionEditorView` (which flips its own `isPresented`
+/// bool in `onSelect` too — redundant with the internal `dismiss()`, but
+/// harmless) but broke `ItemsView`, which reassigns a shared `activeSheet`
+/// item to a *different* case (`.resolved(barcode:)`) inside `onSelect` to
+/// transition straight to the configure screen — the internal `dismiss()`
+/// fired immediately after raced that reassignment and won, snapping
+/// `activeSheet` back to `nil` before the next sheet ever appeared: this
+/// sheet just closed, with nothing saved, back to an empty Items list. If
+/// you add a new caller, remember it owns dismissal entirely on selection.
 struct ProductSearchView: View {
     var onSelect: (String) -> Void
 
@@ -103,7 +117,6 @@ struct ProductSearchView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             onSelect(product.id)
-            dismiss()
         }
     }
 
