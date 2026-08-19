@@ -62,6 +62,21 @@ import FoodpointKit
 /// triggered the insufficient-stock alert, the two are sequenced rather
 /// than shown at once: the stock alert's "OK" button is what actually
 /// triggers the remember prompt in that case.
+///
+/// **FX-4 addition**: each row's context menu now offers "Edit Ingredients",
+/// opening the same `MealCompositionEditorView` pre-populated via its
+/// `initialIngredients` init with the entry's current ingredients (`title:
+/// "Edit Meal"`); its `onDone` calls
+/// `appState.updateMealIngredients(entry.id, ingredients:)` rather than
+/// creating a new entry, so add/remove/amount changes save back onto the
+/// same `MealEntry`. That new `AppState` method (`FoodpointKit/AppState.swift`)
+/// is what actually reconciles the pantry delta for an `.eaten` entry — this
+/// view doesn't need to know the difference between editing a planned vs. an
+/// eaten entry, only that this one method handles both correctly.
+/// `MealDetailView`'s own toolbar "Edit" button (pushed via this view's row
+/// tap) reaches the identical flow — two paths to the same affordance, the
+/// same swipe/context-menu-plus-detail-screen-button duplication
+/// `TemplatesListView` already has for templates.
 struct DayTimelineView: View {
     @Environment(AppState.self) private var appState
 
@@ -91,6 +106,15 @@ struct DayTimelineView: View {
     /// when the timeline itself is on screen. Keyed on `id` rather than the
     /// entry itself since `MealEntry` isn't `Hashable`.
     @State private var selectedEntryID: MealEntry.ID?
+
+    /// The entry currently being edited (FX-4) via a row's context menu —
+    /// non-`nil` presents `MealCompositionEditorView` pre-populated with its
+    /// current ingredients, mirroring `MealDetailView`'s own "Edit" button
+    /// (see that view's doc comment) as a second, row-level path to the same
+    /// affordance, the same "swipe/context menu here, a top-level button on
+    /// the pushed detail screen" duplication `TemplatesListView` already
+    /// uses for templates.
+    @State private var editingEntry: MealEntry?
 
     private var calendar: Calendar { .current }
 
@@ -129,6 +153,13 @@ struct DayTimelineView: View {
                                                 .tint(.orange)
                                             }
                                         }
+                                        .contextMenu {
+                                            Button {
+                                                editingEntry = entry
+                                            } label: {
+                                                Label("Edit Ingredients", systemImage: "pencil")
+                                            }
+                                        }
                                 }
                             }
                         }
@@ -160,8 +191,12 @@ struct DayTimelineView: View {
             }
         }
         .navigationDestination(item: $selectedEntryID) { entryID in
-            if let entry = appState.meals.entries.first(where: { $0.id == entryID }) {
-                MealDetailView(entry: entry)
+            MealDetailView(entryID: entryID)
+        }
+        .sheet(item: $editingEntry) { entry in
+            MealCompositionEditorView(initialIngredients: entry.ingredients, title: "Edit Meal") { newIngredients in
+                guard !newIngredients.isEmpty else { return }
+                appState.updateMealIngredients(entry.id, ingredients: newIngredients)
             }
         }
         .alert("Insufficient Stock", isPresented: $isShowingInsufficientStockAlert, presenting: insufficientStockMessage) { _ in
