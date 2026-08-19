@@ -107,12 +107,13 @@ of it had fully removed. Editing a product's nutrition later never rewrites
 an already-eaten meal's numbers: pantry state is live, meal history is a
 frozen snapshot.
 
-A meal you log often can be saved as a **template** and logged again with
-one tap — the fast path templates exist for: tap a memorized meal in the
-"Templates" list (reachable from the Meals tab's leading toolbar menu) and
-it's logged to today at the current slot, pantry decremented, with
-nutrition re-resolved fresh (never a stale cached value) so a later
-correction to a product's data is reflected. Templates get created two
+A meal you log often can be saved as a **template** and logged again in a
+couple of taps — the fast path templates exist for: in the "Templates" list
+(reachable from the Meals tab's leading toolbar menu), tap a memorized
+meal's "+" and pick a slot (its usual slot listed first) and it's logged to
+today, pantry decremented, with nutrition re-resolved fresh (never a stale
+cached value) so a later correction to a product's data is reflected.
+Templates get created two
 ways: explicitly, from a "New Meal" editor that reuses the same
 ingredient-composition UI (also used to "Edit" a template's ingredients
 later); or promoted from something already logged — after an ad-hoc log
@@ -273,14 +274,19 @@ Foodpoint/
     MealIngredientPantryPickerView.swift, MealIngredientHistoryPickerView.swift,
     MealIngredientUnitSetupView.swift  The four sources' picker sheets used
                         by the composition editor
-    TemplatesListView.swift  (MK-4) Templates list: tap a row to log it in
-                        one tap (TemplateLogButton), "+" to create one,
+    TemplatesListView.swift  (MK-4; FX-7) Templates list: each row's
+                        trailing "+" menu (TemplateLogButton) logs it to
+                        today, letting you pick a slot (default slot listed
+                        first); toolbar "+" to create a template;
                         swipe/context menu to rename, edit, or delete
     TemplateEditorView.swift  (MK-4) "New Meal"/"Edit" template form (name,
                         default slot, ingredients via
                         MealCompositionEditorView)
-    TemplateLogButton.swift  (MK-4) Reusable one-tap-log control with its
-                        own loading/error state
+    TemplateLogButton.swift  (MK-4; restructured FX-7) Reusable "add to
+                        today" control: a trailing "+" menu of MealSlots
+                        (mirroring DayTimelineView's own "+" pattern) in
+                        place of the old whole-row bolt.fill button, with
+                        the same loading/error state as before
     RememberMealPrompt.swift  (MK-4) The "Remember this meal?" prompt
                         (reuses ScannerView's package-size-naming alert
                         verbatim)

@@ -298,14 +298,20 @@ dependency" below).
       `appState.meals.recentlyUsedIngredients()` (what `MealKit` actually
       logged amounts in), not the pantry's own current unit, since the two
       are independently configured and can differ (§6.3).
-    - `TemplatesListView.swift` (MK-4) — the full templates screen:
-      memorized meals, tap-to-log-in-one-tap (`TemplateLogButton`, wired to
+    - `TemplatesListView.swift` (MK-4; log affordance restructured by FX-7) —
+      the full templates screen: memorized meals, log-to-today via a
+      trailing "+" `Menu` (`TemplateLogButton`, wired to
       `AppState.logTemplateAndMarkEaten`), creation via `TemplateEditorView`
       ("New Meal"), and per-template rename (swipe action + name alert)/
       edit (context menu → `TemplateEditorView`)/delete (swipe action or
       context menu + confirmation alert). Reachable from `DayTimelineView`'s
       leading toolbar menu (see its own bullet above), alongside
-      `RangeSummaryView`/`MostConsumedView`.
+      `RangeSummaryView`/`MostConsumedView`. **FX-7**: each row's log
+      affordance used to be a `bolt.fill` icon covering the whole row (no
+      hint that tapping it logs to today right now); `templateRow` now hands
+      `TemplateLogButton` only the row's descriptive content (name, slot,
+      ingredient count) and lets that view append its own trailing "+" menu
+      — see `TemplateLogButton`'s bullet below for the interaction itself.
     - `TemplateEditorView.swift` (MK-4) — the "New Meal" template editor,
       doubling as "Edit" for an existing template (`template: MealTemplate?`,
       `nil` for creation). A plain `Form` (name `TextField`, `defaultSlot`
@@ -319,12 +325,26 @@ dependency" below).
       composed `[LoggedIngredient]` back to `[TemplateIngredient]` via
       `TemplateIngredient.init(logged:)` (MealKit, see its bullet below)
       and calls `appState.meals.addTemplate`/`updateTemplate`.
-    - `TemplateLogButton.swift` (MK-4) — a reusable tappable "log this
-      template now" control wrapping `AppState.logTemplateAndMarkEaten`
-      with its own loading/error state, so `TemplatesListView`'s row (the
-      only current caller) doesn't duplicate that async/error-handling
-      glue. `label` is a `@ViewBuilder` so the caller owns the tappable
-      area's visual shape.
+    - `TemplateLogButton.swift` (MK-4; restructured by FX-7) — a reusable
+      "add this template to today" control wrapping
+      `AppState.logTemplateAndMarkEaten` with its own loading/error state,
+      so `TemplatesListView`'s row (the only current caller) doesn't
+      duplicate that async/error-handling glue. **FX-7**: previously the
+      whole row was a `Button` showing a `bolt.fill` icon, which user
+      testing found didn't communicate "logs this to today, right now."
+      It's now a trailing "+" `Menu` listing every `MealSlot`
+      (`template.defaultSlot` first, labeled "(Usual)"), deliberately
+      mirroring `DayTimelineView.addMealMenu`'s own "+" pattern (same glyph,
+      same tap-then-pick-a-slot shape) so "+" means the same thing
+      everywhere in the Meals tab — and, as a side effect, makes logging to
+      a slot other than the template's default possible from this screen
+      for the first time. `label` is still a `@ViewBuilder`, but now scoped
+      to the row's *descriptive* content only (name, slot, ingredient
+      count) — this view appends its own trailing menu after it, rather
+      than the caller rendering its own log icon inside `label`. The
+      underlying `AppState.logTemplateAndMarkEaten` call, and its
+      loading/error-alert handling, are unchanged by FX-7 — only the
+      trigger UI changed.
     - `RememberMealPrompt.swift` (MK-4) — `RememberMealPromptModifier` +
       a `View.rememberMealPrompt(...)` extension: the "Remember this
       meal?" prompt shown after an ad-hoc log **for today only** (never for

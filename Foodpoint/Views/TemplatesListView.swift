@@ -2,12 +2,15 @@ import SwiftUI
 import FoodpointKit
 
 /// The full templates screen (MK-4, meals-feature-design.md §7) —
-/// memorized meals, tap-to-log-in-one-tap (`TemplateLogButton`, itself
-/// wired to `AppState.logTemplateAndMarkEaten`), creation via `TemplateEditorView`
-/// ("New Meal"), and per-template rename/edit/delete. Reachable from
-/// `MealsView` via a single `NavigationLink` — kept in its own file
-/// specifically so `MealsView`'s edit for this task stays small (two
-/// sibling tasks, MK-5/MK-6, also touch that file in their own branches).
+/// memorized meals, one-tap-to-log via a trailing "+" `Menu`
+/// (`TemplateLogButton`, itself wired to `AppState.logTemplateAndMarkEaten`;
+/// restructured by FX-7 from a whole-row `bolt.fill` button to mirror
+/// `DayTimelineView.addMealMenu`'s "+" pattern — see that file's doc
+/// comment), creation via `TemplateEditorView` ("New Meal"), and
+/// per-template rename/edit/delete. Reachable from `MealsView` via a single
+/// `NavigationLink` — kept in its own file specifically so `MealsView`'s
+/// edit for this task stays small (two sibling tasks, MK-5/MK-6, also touch
+/// that file in their own branches).
 struct TemplatesListView: View {
     @Environment(AppState.self) private var appState
 
@@ -33,7 +36,7 @@ struct TemplatesListView: View {
                 ContentUnavailableView(
                     "No Templates Yet",
                     systemImage: "star",
-                    description: Text("Save a meal as a template to log it again with one tap.")
+                    description: Text("Save a meal as a template to add it to today from the + menu.")
                 )
             } else {
                 List {
@@ -85,26 +88,22 @@ struct TemplatesListView: View {
         }
     }
 
-    /// One template row: the whole row is a `TemplateLogButton`
-    /// (meals-feature-design.md §7's "tap one, and it's logged" fast path),
-    /// with rename/edit/delete offered as swipe actions and a context menu
-    /// rather than competing for the row's primary tap target.
+    /// One template row: name/slot/ingredient-count content plus
+    /// `TemplateLogButton`'s own trailing "+" menu (meals-feature-design.md
+    /// §7's fast path, restructured by FX-7 to read as "add this to
+    /// today" — see `TemplateLogButton`'s doc comment), with rename/edit/
+    /// delete offered as swipe actions and a context menu rather than
+    /// competing for the row's tap targets.
     private func templateRow(_ template: MealTemplate) -> some View {
         TemplateLogButton(template: template) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(template.name)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                    Text("\(template.defaultSlot.id.capitalized) · \(template.ingredients.count) ingredient\(template.ingredients.count == 1 ? "" : "s")")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: "bolt.fill")
-                    .foregroundStyle(.tint)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(template.name)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                Text("\(template.defaultSlot.id.capitalized) · \(template.ingredients.count) ingredient\(template.ingredients.count == 1 ? "" : "s")")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .contentShape(Rectangle())
         }
         .swipeActions {
             Button("Delete", role: .destructive) {
