@@ -77,6 +77,18 @@ import FoodpointKit
 /// tap) reaches the identical flow — two paths to the same affordance, the
 /// same swipe/context-menu-plus-detail-screen-button duplication
 /// `TemplatesListView` already has for templates.
+///
+/// **FX-5 addition**: each row's swipe actions and context menu now also
+/// offer "Delete", calling `requestDelete(_:)`. A `.planned` entry deletes
+/// immediately (`appState.deleteMeal(entry.id)`) — planning never touched
+/// pantry stock, so there's no side effect to warn about, the same
+/// less-ceremony treatment `TemplatesListView` gives non-destructive-feeling
+/// actions. An `.eaten` entry's deletion has a real side effect (it
+/// restores pantry stock the log had decremented), so it goes through a
+/// confirmation alert first — `entryPendingDeletion`, matching
+/// `TemplatesListView`'s own `templatePendingDeletion` confirmation pattern
+/// for template deletion. `MealDetailView`'s own toolbar "Delete" button
+/// reaches the identical `requestDelete`-shaped flow.
 struct DayTimelineView: View {
     @Environment(AppState.self) private var appState
 
@@ -116,6 +128,12 @@ struct DayTimelineView: View {
     /// uses for templates.
     @State private var editingEntry: MealEntry?
 
+    /// The entry pending a confirmation alert before deletion (FX-5) —
+    /// non-`nil` only for an `.eaten` entry (a `.planned` one deletes
+    /// immediately with no alert, see `requestDelete(_:)`), matching
+    /// `TemplatesListView`'s own `templatePendingDeletion` pattern.
+    @State private var entryPendingDeletion: MealEntry?
+
     private var calendar: Calendar { .current }
 
     private var isFutureDay: Bool {
@@ -146,6 +164,9 @@ struct DayTimelineView: View {
                                 ForEach(group.entries) { entry in
                                     entryRow(entry)
                                         .swipeActions {
+                                            Button("Delete", role: .destructive) {
+                                                requestDelete(entry)
+                                            }
                                             if entry.status == .eaten {
                                                 Button("Undo") {
                                                     appState.undoMealEaten(entry.id)
@@ -158,6 +179,11 @@ struct DayTimelineView: View {
                                                 editingEntry = entry
                                             } label: {
                                                 Label("Edit Ingredients", systemImage: "pencil")
+                                            }
+                                            Button(role: .destructive) {
+                                                requestDelete(entry)
+                                            } label: {
+                                                Label("Delete", systemImage: "trash")
                                             }
                                         }
                                 }
@@ -203,6 +229,19 @@ struct DayTimelineView: View {
             Button("OK") { presentRememberPromptIfPending() }
         } message: { message in
             Text(message)
+        }
+        .alert(
+            "Delete Meal?",
+            isPresented: Binding(get: { entryPendingDeletion != nil }, set: { if !$0 { entryPendingDeletion = nil } }),
+            presenting: entryPendingDeletion
+        ) { entry in
+            Button("Delete", role: .destructive) {
+                appState.deleteMeal(entry.id)
+                entryPendingDeletion = nil
+            }
+            Button("Cancel", role: .cancel) { entryPendingDeletion = nil }
+        } message: { entry in
+            Text("\"\(entry.name)\" will be removed and its pantry stock restored.")
         }
         .rememberMealPrompt(
             isPresented: $isShowingRememberPrompt,
@@ -368,6 +407,25 @@ struct DayTimelineView: View {
     private func presentRememberPromptIfPending() {
         guard pendingRememberIngredients != nil else { return }
         isShowingRememberPrompt = true
+    }
+
+    // MARK: - Deletion (FX-5)
+
+    /// Deletes `entry` outright via `appState.deleteMeal(_:)` — distinct
+    /// from the eaten row's existing swipe-to-undo action, which only
+    /// reverts status back to `.planned` and keeps the entry around. A
+    /// `.planned` entry has no pantry side effect (planning never touched
+    /// stock, meals-feature-design.md §5), so it deletes immediately with no
+    /// prompt; an `.eaten` entry's deletion restores pantry stock — a real
+    /// side effect worth confirming first, so this instead sets
+    /// `entryPendingDeletion` to show the confirmation alert, matching the
+    /// judgment call `TemplatesListView` makes for template deletion.
+    private func requestDelete(_ entry: MealEntry) {
+        if entry.status == .eaten {
+            entryPendingDeletion = entry
+        } else {
+            appState.deleteMeal(entry.id)
+        }
     }
 
     /// "Save Variant" on the remember prompt: promotes `ingredients` into a

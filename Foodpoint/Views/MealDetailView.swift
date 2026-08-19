@@ -15,18 +15,35 @@ import FoodpointKit
 /// `AppState.updateMealIngredients`, and a value captured once at push time
 /// would go stale the moment that save happens, still showing the
 /// pre-edit ingredient list. Shows a "Meal Not Found" placeholder for the
-/// (currently unreachable, but safe to handle) case of the entry having been
-/// removed out from under this screen.
+/// (currently unreachable before FX-5, but safe to handle) case of the
+/// entry having been removed out from under this screen — which FX-5's own
+/// "Delete" button now makes reachable in the instant between deletion and
+/// `dismiss()` popping this screen.
+///
+/// **FX-5 addition**: a toolbar "Delete" button alongside "Edit",
+/// `requestDelete()`-shaped identically to `DayTimelineView`'s row-level
+/// affordance (see that view's doc comment) — a `.planned` entry deletes
+/// immediately, an `.eaten` entry confirms first since its deletion
+/// restores real pantry stock. Either way a successful delete calls
+/// `dismiss()` to pop back to the timeline, since `entry` (and thus this
+/// whole screen's content) no longer exists once its `MealEntry` is gone.
 struct MealDetailView: View {
     let entryID: MealEntry.ID
 
     @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
 
     /// Presents `MealCompositionEditorView` pre-populated with this entry's
     /// current ingredients (FX-4) — `true` only while an edit sheet is on
     /// screen; the sheet reads `entry` fresh each time it's opened, so it
     /// always starts from whatever's currently saved, not a stale copy.
     @State private var isShowingEditor = false
+
+    /// `true` while the "Delete Meal?" confirmation alert is on screen
+    /// (FX-5) — only shown for an `.eaten` entry, whose deletion has a real
+    /// pantry side effect; a `.planned` entry's "Delete" button skips this
+    /// and deletes immediately (see `requestDelete(_:)`).
+    @State private var isShowingDeleteConfirmation = false
 
     private var entry: MealEntry? {
         appState.meals.entries.first(where: { $0.id == entryID })
@@ -94,6 +111,13 @@ struct MealDetailView: View {
                     Label("Edit", systemImage: "pencil")
                 }
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(role: .destructive) {
+                    requestDelete(entry)
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
         }
         .sheet(isPresented: $isShowingEditor) {
             MealCompositionEditorView(initialIngredients: entry.ingredients, title: "Edit Meal") { newIngredients in
@@ -101,6 +125,33 @@ struct MealDetailView: View {
                 appState.updateMealIngredients(entry.id, ingredients: newIngredients)
             }
         }
+        .alert("Delete Meal?", isPresented: $isShowingDeleteConfirmation) {
+            Button("Delete", role: .destructive) { performDelete(entry) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("\"\(entry.name)\" will be removed and its pantry stock restored.")
+        }
+    }
+
+    /// Deletes `entry` outright (FX-5) — identical `requestDelete`-shaped
+    /// judgment call as `DayTimelineView`'s row affordance: a `.planned`
+    /// entry has no pantry side effect, so it deletes immediately;
+    /// an `.eaten` entry's deletion restores real pantry stock, so this
+    /// shows the confirmation alert first instead.
+    private func requestDelete(_ entry: MealEntry) {
+        if entry.status == .eaten {
+            isShowingDeleteConfirmation = true
+        } else {
+            performDelete(entry)
+        }
+    }
+
+    /// Actually deletes `entry` via `appState.deleteMeal(_:)` and pops this
+    /// screen — called either immediately (`.planned`) or after the
+    /// confirmation alert's "Delete" button (`.eaten`).
+    private func performDelete(_ entry: MealEntry) {
+        appState.deleteMeal(entry.id)
+        dismiss()
     }
 
     private func ingredientRow(_ ingredient: LoggedIngredient) -> some View {

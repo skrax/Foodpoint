@@ -269,6 +269,15 @@ dependency" below).
       templates. The row-push `.navigationDestination(item:)` now passes
       `MealDetailView(entryID:)` directly rather than pre-resolving the
       `MealEntry` here — see `MealDetailView`'s own bullet for why.
+      **FX-5**: each row's swipe actions and context menu now also offer
+      "Delete", via `requestDelete(_:)` — a `.planned` entry deletes
+      immediately (`appState.deleteMeal(entry.id)`, no pantry effect since
+      planning never touched stock), while an `.eaten` entry sets
+      `entryPendingDeletion` to show a confirmation alert first (its
+      deletion restores real pantry stock), matching `TemplatesListView`'s
+      own `templatePendingDeletion` confirmation pattern. `MealDetailView`'s
+      own toolbar "Delete" button reaches an identically-shaped
+      `requestDelete` flow.
     - `DayTotalsHeaderView.swift` (MK-6) — day totals header: eaten
       calories/macros with a completeness signal (§8.2), plus planned
       calories as a separate "planned +X" projection line
@@ -294,7 +303,7 @@ dependency" below).
       row's display name/image via `appState.meals.recentlyUsedIngredients()`
       (no network call), the same trick the composition editor's "from
       history" source uses.
-    - `MealDetailView.swift` (MK-6; FX-4) — one `MealEntry`'s ingredient
+    - `MealDetailView.swift` (MK-6; FX-4; FX-5) — one `MealEntry`'s ingredient
       rows, nutrition completeness total, and its nutrition-source
       provenance mix (`MealStore.provenanceMix(for:)`,
       meals-feature-design.md §8.3): a proportional bar plus counts of how
@@ -311,9 +320,18 @@ dependency" below).
       once-captured `let entry: MealEntry` would keep showing the pre-edit
       ingredient list after that save until the screen was popped and
       re-pushed. Renders a "Meal Not Found" placeholder if the live lookup
-      ever comes back `nil` (not currently reachable — nothing deletes an
-      entry out from under this screen yet — but handled defensively rather
-      than force-unwrapped). The nutrition/provenance computed properties
+      ever comes back `nil` — before FX-5 not reachable (nothing deleted an
+      entry out from under this screen), but FX-5's own "Delete" button now
+      makes it briefly reachable in the instant between deletion and
+      `dismiss()` popping this screen, so the defensive handling earns its
+      keep. **FX-5**: a toolbar "Delete" button alongside "Edit",
+      `requestDelete(_:)`-shaped identically to `DayTimelineView`'s
+      row-level affordance (see that view's bullet above) — a `.planned`
+      entry deletes immediately, an `.eaten` entry confirms first via
+      `isShowingDeleteConfirmation`. Either way a successful delete calls
+      `appState.deleteMeal(entry.id)` then `dismiss()` (via
+      `@Environment(\.dismiss)`) to pop back to the timeline, since `entry`
+      no longer exists once its `MealEntry` is gone. The nutrition/provenance computed properties
       became functions taking the resolved `entry`/`completeness`/
       `provenance` as parameters rather than reading instance-level
       properties, since `entry` itself is now only available inside the
@@ -461,6 +479,15 @@ dependency" below).
       mutates anything — and empty for an entry that isn't currently
       `.planned` (an eaten entry's pantry effect, if any, already
       happened).
+    - `restorePantryConsumption(for ingredients:)` (private, FX-5) — the
+      `consumedAmounts`-precise pantry-restore loop factored out of
+      `undoMealEaten` so `updateMealIngredients` (reversing the OLD
+      ingredient list) and `deleteMeal` (reversing a deleted `.eaten`
+      entry's consumption for good) can share it too, rather than
+      tripling the same loop across three methods. Restores each
+      `usesFromPantry` ingredient by exactly the amount `consumedAmounts`
+      recorded for it (falling back to `ingredient.amount` if untracked),
+      via `pantry.restore` so a fully-depleted item is re-created.
     - `updateMealIngredients(_ entryID:ingredients:) -> MealEntry?` (FX-4) —
       saves an edited ingredient list back onto an existing entry, the
       orchestration behind `DayTimelineView`'s row context menu and
@@ -482,6 +509,18 @@ dependency" below).
       ingredients, old or new, never touch inventory, matching
       `markMealEaten`/`undoMealEaten`'s own rule. No-op, including no
       pantry mutation, if `entryID` isn't a known entry.
+    - `deleteMeal(_ entryID:) -> MealEntry?` (FX-5) — deletes an entry
+      outright via `meals.removeEntry`, distinct from `undoMealEaten`
+      (which only reverts `.eaten` back to `.planned`, keeping the entry
+      around). If the removed entry was `.eaten`, restores pantry stock for
+      its `usesFromPantry` ingredients via the same `restorePantryConsumption`
+      helper `undoMealEaten`/`updateMealIngredients` share, including the
+      fully-depleted-item-recreation case. A removed `.planned` entry has
+      no pantry effect — planning never touched stock. Either way, sweeps
+      any leftover `consumedAmounts` bookkeeping keyed by the removed
+      entry's ingredient ids. No-op, including no pantry mutation, if
+      `entryID` isn't a known entry — matches `MealStore.removeEntry`'s own
+      contract.
     - `logTemplateAndMarkEaten(_ template:date:slot:) async throws -> MealEntry?`
       (MK-4, meals-feature-design.md §7) — one-tap template logging's
       orchestration-aware counterpart to `MealStore.logTemplate`, which
@@ -519,6 +558,15 @@ dependency" below).
     subsequent `undoMealEaten` still re-creates it correctly); a mix of
     `usesFromPantry` on/off across old and new lists only reconciles the
     ingredients with the toggle on; and an unknown `entryID` is a no-op.
+  - `Tests/FoodpointKitTests/MealDeletionTests.swift` (FX-5) — Swift
+    Testing, same scope discipline again: covers only `AppState.deleteMeal(_:)`.
+    A planned entry's deletion never touches pantry; an eaten entry's
+    deletion restores exactly what `markMealEaten` decremented, including
+    the clamped-amount case (restores only what was actually taken, not the
+    full logged amount) and the fully-depleted-item-recreation case;
+    `usesFromPantry`-off ingredients are unaffected on either a planned or
+    an eaten entry's deletion; an unknown `entryID` is a no-op, including
+    calling `deleteMeal` twice on the same entry.
 
 - `Packages/PantryKit/` (local package, product `PantryKit`) — the
   pantry's state and CRUD logic, no `import SwiftUI` anywhere in it.
@@ -677,10 +725,12 @@ dependency" below).
       `usesFromPantry` is `true` to decrement/restore the right pantry
       items — see package-architecture.md §3.5's example and the
       `FoodpointKit` bullet above. `removeEntry` follows the same "hand
-      back what changed" contract, returning the deleted entry, but has no
-      `FoodpointKit`-level caller yet (deleting a logged entry, as opposed
-      to a template — MK-4 added `removeTemplate`'s app-level caller,
-      `TemplatesListView` — is still MK-5 territory).
+      back what changed" contract, returning the deleted entry — its
+      `FoodpointKit`-level caller is `AppState.deleteMeal(_:)` (FX-5, see
+      that bullet above), which restores pantry stock for a removed
+      `.eaten` entry's `usesFromPantry` ingredients the same way
+      `undoMealEaten` does, and does nothing pantry-related for a removed
+      `.planned` one.
     - `dayTotal(for:)`/`rangeSummary(from:to:)` — nutrition aggregation.
       `.eaten` and `.planned` totals are always kept separate, never
       summed (meals-feature-design.md §8.1), and every total is a

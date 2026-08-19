@@ -207,9 +207,9 @@ cd Packages/FoodpointKit && swift test
 ```
 
 (`FoodpointKit`'s test target covers only its cross-domain orchestration —
-`AppState.markMealEaten`/`.undoMealEaten`/`.updateMealIngredients` — not
-`PantryStore`'s/`MealStore`'s own logic, which is `PantryKitTests`'/
-`MealKitTests`' job.)
+`AppState.markMealEaten`/`.undoMealEaten`/`.updateMealIngredients`/
+`.deleteMeal` — not `PantryStore`'s/`MealStore`'s own logic, which is
+`PantryKitTests`'/`MealKitTests`' job.)
 
 ## Project layout
 
@@ -277,7 +277,14 @@ Foodpoint/
                         reopening MealCompositionEditorView pre-populated
                         with the entry's current ingredients and saving via
                         appState.updateMealIngredients — MealDetailView's
-                        own toolbar "Edit" button reaches the same flow
+                        own toolbar "Edit" button reaches the same flow.
+                        Swipe actions and the context menu also offer
+                        "Delete" (FX-5): a planned entry deletes immediately
+                        via appState.deleteMeal (no pantry effect — planning
+                        never touched stock); an eaten entry's deletion
+                        restores pantry stock, so it confirms first via an
+                        alert, matching TemplatesListView's own
+                        delete-with-confirmation pattern
     MealCompositionEditorView.swift  Ingredient rows + running nutrition
                         footer with a completeness signal; four ingredient
                         sources (pantry/history/scan/search) behind a
@@ -319,14 +326,18 @@ Foodpoint/
     MostConsumedView.swift  (MK-6) Most-consumed-products list across all
                         meals in the last 30 days, over
                         appState.meals.mostConsumed(from:to:)
-    MealDetailView.swift  (MK-6; FX-4) One meal entry's ingredients,
+    MealDetailView.swift  (MK-6; FX-4; FX-5) One meal entry's ingredients,
                         nutrition total, and nutrition-source provenance mix
                         (Open Food Facts vs. Custom). Takes an entryID and
                         looks the entry up live from appState so its own
                         toolbar "Edit" button (opens
                         MealCompositionEditorView pre-populated, saves via
                         appState.updateMealIngredients) reflects the edit
-                        immediately rather than showing a stale snapshot
+                        immediately rather than showing a stale snapshot. A
+                        toolbar "Delete" button (FX-5) deletes via
+                        appState.deleteMeal — immediately for a planned
+                        entry, after a confirmation alert for an eaten one —
+                        then dismisses back to the timeline
   Scanners/             Barcode scanning (AVFoundation-backed UIViewRepresentable)
 
 Packages/
@@ -346,14 +357,21 @@ Packages/
                            logTemplateAndMarkEaten (one-tap template
                            logging: instantiate, plan, then markMealEaten,
                            so it decrements pantry identically to a manual
-                           log), and updateMealIngredients (FX-4: saves an
+                           log), updateMealIngredients (FX-4: saves an
                            edited ingredient list back onto an existing
                            entry — a plain meals.updateEntry for a planned
                            entry, or, for an eaten one, reverses the old
                            ingredients' pantry consumption via pantry.restore
                            and reapplies the new list's via pantry.consume,
                            using the same consumedAmounts bookkeeping
-                           markMealEaten/undoMealEaten already maintain)
+                           markMealEaten/undoMealEaten already maintain),
+                           and deleteMeal (FX-5: removes an entry outright
+                           via meals.removeEntry, restoring pantry stock for
+                           a removed eaten entry's usesFromPantry
+                           ingredients via the same restorePantryConsumption
+                           helper undoMealEaten/updateMealIngredients now
+                           share — a removed planned entry has no pantry
+                           effect)
     Tests/FoodpointKitTests/  Swift Testing unit tests for the orchestration
                               above only
 
@@ -374,7 +392,9 @@ Packages/
     Sources/MealKit/
       MealStore.swift       Template CRUD; entry CRUD/lifecycle (log
                             directly as eaten, plan for later, markEaten,
-                            undo); logTemplate/planTemplate (instantiate a
+                            undo, removeEntry — the last now called by
+                            FoodpointKit.AppState.deleteMeal, FX-5);
+                            logTemplate/planTemplate (instantiate a
                             template fresh, then log/plan it); day/range
                             nutrition aggregation with completeness
                             reporting; consumption stats; provenanceMix

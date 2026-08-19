@@ -100,7 +100,29 @@ extension AppState {
     @discardableResult
     public func undoMealEaten(_ entryID: UUID) -> MealEntry? {
         guard let entry = meals.undo(entryID) else { return nil }
-        for ingredient in entry.ingredients where ingredient.usesFromPantry {
+        restorePantryConsumption(for: entry.ingredients)
+        return entry
+    }
+
+    /// Reverses the pantry effect of one already-`.eaten` ingredient list —
+    /// restores each `usesFromPantry` ingredient by exactly the amount
+    /// `consumedAmounts` recorded for it (falling back to the ingredient's
+    /// own `amount` if this entry's consumption was never tracked through
+    /// this `AppState` instance, the safest assumption), via
+    /// `PantryStore.restore` rather than a raw quantity bump so the
+    /// package-architecture.md §4.3 edge case — a meal that fully depleted
+    /// (and thus deleted) a pantry item — recreates that item instead of
+    /// silently doing nothing to a barcode with no `FoodItem` left to bump.
+    ///
+    /// Extracted once specifically so `undoMealEaten`, `updateMealIngredients`
+    /// (reversing the OLD ingredient list before applying the new one), and
+    /// `deleteMeal` (FX-5, reversing a deleted `.eaten` entry's consumption
+    /// for good) all share this exact reconciliation instead of tripling the
+    /// same loop across three methods. `usesFromPantry`-off ingredients are
+    /// skipped entirely — they never drew from pantry stock in the first
+    /// place, so there's nothing to restore for them.
+    private func restorePantryConsumption(for ingredients: [LoggedIngredient]) {
+        for ingredient in ingredients where ingredient.usesFromPantry {
             let restoredAmount = consumedAmounts.removeValue(forKey: ingredient.id) ?? ingredient.amount
             guard restoredAmount > 0 else { continue }
             let product = Product(
@@ -114,7 +136,6 @@ extension AppState {
             )
             pantry.restore(product: product, unit: ingredient.impliedUnit, amount: restoredAmount)
         }
-        return entry
     }
 
     /// Which `usesFromPantry` ingredients on `entryID` came up short against
@@ -186,20 +207,7 @@ extension AppState {
         guard let existing = meals.entries.first(where: { $0.id == entryID }) else { return nil }
 
         if existing.status == .eaten {
-            for ingredient in existing.ingredients where ingredient.usesFromPantry {
-                let restoredAmount = consumedAmounts.removeValue(forKey: ingredient.id) ?? ingredient.amount
-                guard restoredAmount > 0 else { continue }
-                let product = Product(
-                    id: ingredient.barcode,
-                    name: ingredient.productName,
-                    brand: ingredient.productBrand,
-                    imageURL: ingredient.imageURL,
-                    nutriScoreGrade: nil,
-                    categoriesTags: [],
-                    nutrition: ingredient.impliedNutritionPer100g
-                )
-                pantry.restore(product: product, unit: ingredient.impliedUnit, amount: restoredAmount)
-            }
+            restorePantryConsumption(for: existing.ingredients)
 
             for ingredient in ingredients where ingredient.usesFromPantry {
                 let consumed = pantry.consume(barcode: ingredient.barcode, amount: ingredient.amount)
@@ -211,6 +219,46 @@ extension AppState {
         updated.ingredients = ingredients
         meals.updateEntry(updated)
         return updated
+    }
+
+    /// Deletes `entryID` outright (FX-5) — distinct from `undoMealEaten`,
+    /// which only transitions `.eaten` back to `.planned` and keeps the
+    /// entry around; this removes it from history/the timeline entirely.
+    /// Calls `meals.removeEntry`, which hands back the removed entry per its
+    /// own "so a caller can restore pantry stock when deleting an `.eaten`
+    /// entry" contract.
+    ///
+    /// If the removed entry was `.eaten`, restores pantry stock for its
+    /// `usesFromPantry` ingredients via the same `consumedAmounts`-precise
+    /// `restorePantryConsumption` helper `undoMealEaten`/
+    /// `updateMealIngredients` share — including the fully-depleted-item-
+    /// recreation case (package-architecture.md §4.3). If it was `.planned`,
+    /// nothing pantry-related happens at all: planning never decremented
+    /// stock in the first place, so there's nothing to reverse
+    /// (meals-feature-design.md §5).
+    ///
+    /// Either way, any leftover `consumedAmounts` bookkeeping keyed by this
+    /// entry's own ingredient ids is cleaned up (`restorePantryConsumption`
+    /// already does this via `removeValue` for the `.eaten`/`usesFromPantry`
+    /// case; the explicit sweep below also covers `usesFromPantry`-off
+    /// ingredients and the `.planned` case, both of which should never have
+    /// an entry there but are swept defensively rather than assumed) — a
+    /// deleted entry's `LoggedIngredient` ids should never linger as stale
+    /// keys in this dictionary.
+    ///
+    /// No-op, including no pantry mutation, if `entryID` isn't a known
+    /// entry — matches `MealStore.removeEntry`'s own contract. Returns the
+    /// removed entry.
+    @discardableResult
+    public func deleteMeal(_ entryID: UUID) -> MealEntry? {
+        guard let removed = meals.removeEntry(entryID) else { return nil }
+        if removed.status == .eaten {
+            restorePantryConsumption(for: removed.ingredients)
+        }
+        for ingredient in removed.ingredients {
+            consumedAmounts.removeValue(forKey: ingredient.id)
+        }
+        return removed
     }
 
     /// One-tap template logging (MK-4, meals-feature-design.md §7): the
