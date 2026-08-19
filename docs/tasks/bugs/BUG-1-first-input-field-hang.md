@@ -219,6 +219,43 @@ nothing further to narrow down from code alone — the code paths involved
 (`.searchable()`, `.focused()`, plain `TextField` bindings, nested sheet
 presentation) all behaved correctly under direct testing here.
 
+### Additional data point (2026-08-19, from FX-1/FX-2 manual verification)
+
+While attempting Simulator-based manual verification for FX-1 (blank
+screen after search acquisition) and FX-2 (camera reopening after a
+search-originated save) — both landed in the same session, both touching
+this exact `ItemsView` "•••" menu → sheet-handoff area — the same class of
+tooling flakiness reproduced again, with a new, more specific symptom than
+either of the two mundane causes already documented above (bad coordinate
+math; a stale `screenshot` lagging one call behind).
+
+This time, coordinates were double-checked against a fully-rendered menu
+screenshot before every tap (confirmed correct — one attempt using the
+identical technique did work, opening the camera via "Scan Barcode"), yet
+repeated subsequent taps on menu items produced no visible effect *at the
+time*, and then, several tool calls later with no further taps issued, a
+tap fired against whatever the app happened to be showing by then —
+landing on a completely unrelated screen (a "New Meal" ingredient
+composition view reached via the Meals tab) rather than anything requested
+in that turn. The most consistent explanation is that some taps are being
+*queued* by the tool/Simulator rather than delivered (or dropped)
+immediately, and later flushed against whatever UI is on-screen at flush
+time rather than the UI that was on-screen when the tap was issued — a
+third, previously-undocumented tooling artifact in this same family as the
+first two, and arguably worse for diagnosis since it doesn't just look
+like "nothing happened," it looks like "something happened, just not what
+I asked for."
+
+This doesn't change this spike's conclusion — still no evidence of a real
+app-level input hang, and still nothing that would explain the user's
+original non-scripted report — but it does mean: **treat any Simulator
+session driving this specific `ItemsView` sheet-handoff area via
+`mcp__Claude_Code_iOS_Simulator__control` as unreliable for verification
+purposes**, budget for it, and prefer physical-device verification for
+anything touching this code path rather than spending repeated turns
+retrying Simulator taps. FX-1/FX-2 both stopped their manual-verification
+attempts here rather than continuing to chase this.
+
 ## Out of scope
 
 - Fixing every downstream consequence of the bug speculatively before the
