@@ -55,6 +55,14 @@ graph TD
     MK3 --> MK4["MK-4 Templates + one-tap logging"]
     MK3 --> MK5["MK-5 Planning + tick-off"]
     MK3 --> MK6["MK-6 Range summary + consumption"]
+
+    UX2 --> FX1["FX-1 Fix blank screen after search"]
+    UX2 --> FX2["FX-2 Camera reopens after search save"]
+    MK2 --> FX3["FX-3 Add-vs-Done clarity"]
+    MK3 --> FX4["FX-4 Edit meal ingredients"]
+    MK3 --> FX5["FX-5 Delete meals"]
+    MK3 --> FX6["FX-6 Name meals"]
+    MK4 --> FX7["FX-7 Clarify template instantiation"]
 ```
 
 ## Epic 1 — Package Architecture Restructuring
@@ -104,6 +112,29 @@ a UI that's about to change underneath it.
 | [MK-5](epic-3-meals-feature/MK-5-planning-and-tick-off.md) | Planning and tick-off | in-progress | MK-3 |
 | [MK-6](epic-3-meals-feature/MK-6-range-summary-and-consumption.md) | Range summary and consumption surfaces | in-progress | MK-3 |
 
+## Epic 4 — Post-Testing Fixes
+
+Direct feedback from running the app on the physical device for the first
+time, same spirit as Epic 2: no companion design doc, scoped straight from
+what testing turned up. Two bugs in the search-acquisition flow Epic 2
+built (`ItemsView` → `ProductSearchView` → `ScannerView` handoff), plus
+five usability/functionality gaps in the Meals feature Epic 3 built —
+editing/deleting/naming a meal, the composition editor's confusing
+add-vs-finish buttons, and an unclear one-tap-template-log affordance.
+Nothing here blocks anything else; all seven are independent of each
+other, though FX-1/FX-2 touch the same handoff code and may be easiest to
+fix together.
+
+| ID | Title | Status | Depends on |
+|----|-------|--------|-----------|
+| [FX-1](epic-4-post-testing-fixes/FX-1-fix-blank-screen-after-search-acquisition.md) | Fix blank screen after adding a product via search | ready | UX-2 |
+| [FX-2](epic-4-post-testing-fixes/FX-2-fix-camera-reopens-after-search-save.md) | Don't reopen the camera after saving a product added via search | ready | UX-2 |
+| [FX-3](epic-4-post-testing-fixes/FX-3-composition-editor-add-vs-done-clarity.md) | Make "add another ingredient" vs "finish the meal" unambiguous | ready | MK-2 |
+| [FX-4](epic-4-post-testing-fixes/FX-4-edit-meal-ingredients.md) | Let a meal's ingredients be edited after it's logged or planned | ready | MK-3 |
+| [FX-5](epic-4-post-testing-fixes/FX-5-delete-meals.md) | Let a logged or planned meal be deleted | ready | MK-3 |
+| [FX-6](epic-4-post-testing-fixes/FX-6-name-meals.md) | Let a meal be given a real name instead of a hardcoded placeholder | ready | MK-3 |
+| [FX-7](epic-4-post-testing-fixes/FX-7-clarify-template-instantiation-affordance.md) | Make logging a template from the Templates list self-explanatory | ready | MK-4 |
+
 ## Bugs
 
 Not epic-sequenced feature work — tracked separately as they're found.
@@ -150,8 +181,27 @@ to its own testing-tooling artifacts (misconverted tap coordinates,
 screenshot-lag right after a launch/foreground transition) — a plausible
 explanation at the time. But it was independently re-hit by several later
 sessions working in this exact app, including the MK-6 session's
-reboot/reinstall-surviving repro above. **The physical-device check this
-spike's acceptance criteria call for still hasn't happened** — that's the
-next concrete step, since it's the strongest signal for whether this is
-app-real (in which case MK-3/MK-5/MK-6 stay blocked until it's fixed) or
-still somehow Simulator/tooling-specific.
+reboot/reinstall-surviving repro above. The app has since actually run on
+the physical device (see Epic 4 below) — the user didn't report the exact
+"input stops registering" symptom directly, but did find a related bug
+(**FX-1**) in the same general area (a sequenced/stacked sheet handoff off
+`ItemsView`) on that same device. Whether FX-1 and BUG-1 share a root
+cause is still open; FX-1's own task notes this. BUG-1's specific
+acceptance criteria (reproduce-or-rule-out on device, narrow the trigger)
+haven't been explicitly walked through yet — that's still the next
+concrete step for closing it out one way or the other.
+
+**Epic 4 is new**, filed directly from that physical-device session: two
+bugs in the search-acquisition flow Epic 2 built (blank screen after
+adding via search, camera reopening after a search-originated save — both
+traced to specific code in `ItemsView.swift`/`ScannerView.swift`, see
+FX-1/FX-2), and five Meals-feature usability/functionality gaps (FX-3
+through FX-7 — the composition editor's add-vs-finish button confusion,
+missing edit/delete/naming for meals, and an unclear template-log
+affordance). All seven are `ready` and independent of each other. Given
+this, it's also worth treating MK-3/MK-5/MK-6's own manual-verification
+gate as closer to resolvable than it looked before this session — the app
+clearly runs and the core flows work well enough to surface these
+specific, narrow issues rather than a wall of failures — but none of the
+three has had its own acceptance criteria explicitly walked through yet,
+so they stay `in-progress` rather than being flipped to `done` here.
