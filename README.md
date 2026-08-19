@@ -208,14 +208,24 @@ Foodpoint/
                        `entryPoint`, a sheet presentable from elsewhere
                        (ItemsView's "•••" menu, for both its Scan Barcode
                        and Search by Name items) without duplicating this
-                       logic
+                       logic. After a successful save, `.scan`/`nil`
+                       (camera-originated) presentations reopen the camera
+                       for the next scan as before; `.resolved(barcode:)`
+                       (search-originated) presentations dismiss back to
+                       ItemsView instead of ever opening a camera (FX-2)
   Views/               SwiftUI views only — no business logic; read/write
                         pantry state via `appState.pantry.*` (or meals
                         state via `appState.meals.*`)
     ItemsView.swift     Items tab; "•••" menu offers Scan Barcode (opens
                         ScannerView directly) and Search by Name (presents
                         ProductSearchView itself, then hands the chosen
-                        barcode to ScannerView via a second, sequenced sheet)
+                        barcode to ScannerView). All three possible sheets
+                        (scan / search / resolved-from-search) are driven by
+                        one `ActiveSheet?` and a single `.sheet(item:)`
+                        (FX-1: two separate `.sheet(isPresented:)` modifiers
+                        chained via `onDismiss` used to race UIKit's own
+                        dismiss/present timing, causing a blank sheet on the
+                        first search-result pick)
     ProductSearchView.swift  Text search sheet; picking a result re-resolves
                               it by barcode through the same path a scan uses
     ItemDetailView.swift  An item's detail screen (nutrition, quantity,

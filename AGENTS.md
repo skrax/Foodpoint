@@ -118,13 +118,28 @@ dependency" below).
     already expressed intent by picking a menu item) and shows a Cancel
     button; `nil` is today's Scan-tab-root behavior, unchanged.
     `.resolved(barcode:)` is how a `ProductSearchView` pick — presented and
-    resolved to a barcode by `ItemsView` itself, via a second, sequenced
-    sheet — still re-enters `ScannerView`'s `fetchFoodData(for:)` rather
-    than reusing the already-fetched product, so there's exactly one code
-    path past that point, not two to maintain. If you add another entry
-    point into this flow, extend `EntryPoint` rather than duplicating `ScannerView`'s
+    resolved to a barcode by `ItemsView` itself — still re-enters
+    `ScannerView`'s `fetchFoodData(for:)` rather than reusing the
+    already-fetched product, so there's exactly one code path past that
+    point, not two to maintain. If you add another entry point into this
+    flow, extend `EntryPoint` rather than duplicating `ScannerView`'s
     acquire/confirm/configure/save logic elsewhere — that duplication is
-    exactly what this parameter exists to avoid.
+    exactly what this parameter exists to avoid. **FX-1**: `ItemsView` used
+    to hand off from the search sheet to this sheet via two independent
+    `.sheet(isPresented:)` modifiers (the search sheet's `onDismiss`
+    flipping a second `Bool`), which raced UIKit's own dismiss/present
+    timing and produced a real blank-sheet bug on the first attempt (see
+    `ItemsView`'s bullet below) — fixed by switching to one `.sheet(item:)`
+    over an `ActiveSheet` enum, not by adding a loading indicator (this view
+    already had one: the `ProgressView` shown while `isLoading` is true
+    below covers `fetchFoodData` for every entry point, including
+    `.resolved(barcode:)`). **FX-2**: `scanAgain()` — called after a
+    successful save to reopen the camera for the next scan — now checks
+    `entryPoint` first: for `.resolved(barcode:)` (search-originated) it
+    dismisses the sheet back to `ItemsView` instead, since there's no reason
+    to surprise a search-only flow with a camera it never asked for;
+    `.scan`/`nil` (camera-originated, including the Scan tab root) keep
+    reopening the camera exactly as before.
   - `Views/` — SwiftUI views. Keep bodies declarative; push non-trivial
     logic into `PantryKit` (a new/extended `PantryStore` method, reached
     via `appState.pantry`) or a `FoodFoundation` computed property, rather
