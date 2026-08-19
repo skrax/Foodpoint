@@ -140,6 +140,19 @@ and total amount over the last 30 days for that product, read by
 cross-referencing `appState.meals` by barcode from the pantry-side view
 (`MealKit` itself still never references `PantryKit`).
 
+A meal's ingredients can also be **edited** after the fact — add a missed
+ingredient, correct an amount, remove something — without deleting the entry
+and starting over: an "Edit" affordance (the detail screen's toolbar button,
+or a row's context menu on the day timeline) reopens the same composition
+editor, pre-populated with the entry's current ingredients. Editing a
+**planned** entry just saves the new list; nothing's touched the pantry yet.
+Editing an **eaten** entry reconciles pantry stock precisely — the old
+ingredient list's consumption is reversed and the new list's is applied, with
+the same clamp-to-zero-on-insufficient-stock and depleted-item-recreation
+behavior logging/undo already have, so the pantry always reflects exactly
+what the entry's current ingredients imply, never a stale or double-counted
+amount.
+
 With this range-summary/consumption work (MK-6) landed alongside the
 day-timeline/templates/planning work built in parallel with it (MK-4/MK-5),
 the meals feature reaches every bare-level capability
@@ -194,8 +207,9 @@ cd Packages/FoodpointKit && swift test
 ```
 
 (`FoodpointKit`'s test target covers only its cross-domain orchestration —
-`AppState.markMealEaten`/`.undoMealEaten` — not `PantryStore`'s/
-`MealStore`'s own logic, which is `PantryKitTests`'/`MealKitTests`' job.)
+`AppState.markMealEaten`/`.undoMealEaten`/`.updateMealIngredients` — not
+`PantryStore`'s/`MealStore`'s own logic, which is `PantryKitTests`'/
+`MealKitTests`' job.)
 
 ## Project layout
 
@@ -258,7 +272,12 @@ Foodpoint/
                         eggs, have 4" note (appState.stockShortfalls)
                         computed without reserving stock. Eaten rows keep
                         the swipe-to-undo action (appState.undoMealEaten)
-                        that restores pantry stock exactly
+                        that restores pantry stock exactly. Each row's
+                        context menu also offers "Edit Ingredients" (FX-4),
+                        reopening MealCompositionEditorView pre-populated
+                        with the entry's current ingredients and saving via
+                        appState.updateMealIngredients — MealDetailView's
+                        own toolbar "Edit" button reaches the same flow
     MealCompositionEditorView.swift  Ingredient rows + running nutrition
                         footer with a completeness signal; four ingredient
                         sources (pantry/history/scan/search) behind a
@@ -300,9 +319,14 @@ Foodpoint/
     MostConsumedView.swift  (MK-6) Most-consumed-products list across all
                         meals in the last 30 days, over
                         appState.meals.mostConsumed(from:to:)
-    MealDetailView.swift  (MK-6) One meal entry's ingredients, nutrition
-                        total, and nutrition-source provenance mix (Open
-                        Food Facts vs. Custom)
+    MealDetailView.swift  (MK-6; FX-4) One meal entry's ingredients,
+                        nutrition total, and nutrition-source provenance mix
+                        (Open Food Facts vs. Custom). Takes an entryID and
+                        looks the entry up live from appState so its own
+                        toolbar "Edit" button (opens
+                        MealCompositionEditorView pre-populated, saves via
+                        appState.updateMealIngredients) reflects the edit
+                        immediately rather than showing a stale snapshot
   Scanners/             Barcode scanning (AVFoundation-backed UIViewRepresentable)
 
 Packages/
@@ -322,7 +346,14 @@ Packages/
                            logTemplateAndMarkEaten (one-tap template
                            logging: instantiate, plan, then markMealEaten,
                            so it decrements pantry identically to a manual
-                           log)
+                           log), and updateMealIngredients (FX-4: saves an
+                           edited ingredient list back onto an existing
+                           entry — a plain meals.updateEntry for a planned
+                           entry, or, for an eaten one, reverses the old
+                           ingredients' pantry consumption via pantry.restore
+                           and reapplies the new list's via pantry.consume,
+                           using the same consumedAmounts bookkeeping
+                           markMealEaten/undoMealEaten already maintain)
     Tests/FoodpointKitTests/  Swift Testing unit tests for the orchestration
                               above only
 

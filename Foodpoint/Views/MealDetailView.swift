@@ -3,23 +3,58 @@ import FoodpointKit
 
 /// Detail screen for one `MealEntry` (MK-6): its ingredient rows, a nutrition
 /// completeness total (§8.2, same signal `MealCompositionEditorView`'s
-/// footer shows live while composing), and — new for this task — its
-/// nutrition-source provenance mix (meals-feature-design.md §8.3), so a meal
-/// built mostly on hand-entered "Custom" numbers reads differently from one
-/// built on Open Food Facts data. Pushed from `MealsView`'s entry list.
+/// footer shows live while composing), and its nutrition-source provenance
+/// mix (meals-feature-design.md §8.3), so a meal built mostly on hand-entered
+/// "Custom" numbers reads differently from one built on Open Food Facts data.
+/// Pushed from `DayTimelineView`'s entry list.
+///
+/// Takes `entryID` rather than a plain `MealEntry` snapshot and looks the
+/// entry up live from `appState.meals.entries` on every render (`entry`
+/// below) — needed since FX-4's "Edit" button (see its own doc comment)
+/// mutates this same entry's ingredients in place via
+/// `AppState.updateMealIngredients`, and a value captured once at push time
+/// would go stale the moment that save happens, still showing the
+/// pre-edit ingredient list. Shows a "Meal Not Found" placeholder for the
+/// (currently unreachable, but safe to handle) case of the entry having been
+/// removed out from under this screen.
 struct MealDetailView: View {
-    let entry: MealEntry
+    let entryID: MealEntry.ID
 
-    private var completeness: NutritionCompleteness {
+    @Environment(AppState.self) private var appState
+
+    /// Presents `MealCompositionEditorView` pre-populated with this entry's
+    /// current ingredients (FX-4) — `true` only while an edit sheet is on
+    /// screen; the sheet reads `entry` fresh each time it's opened, so it
+    /// always starts from whatever's currently saved, not a stale copy.
+    @State private var isShowingEditor = false
+
+    private var entry: MealEntry? {
+        appState.meals.entries.first(where: { $0.id == entryID })
+    }
+
+    private func completeness(for entry: MealEntry) -> NutritionCompleteness {
         MealStore.completeness(for: entry.ingredients)
     }
 
-    private var provenance: NutritionProvenanceMix {
+    private func provenance(for entry: MealEntry) -> NutritionProvenanceMix {
         MealStore.provenanceMix(for: entry.ingredients)
     }
 
     var body: some View {
-        List {
+        Group {
+            if let entry {
+                detail(for: entry)
+            } else {
+                ContentUnavailableView("Meal Not Found", systemImage: "questionmark.circle")
+            }
+        }
+    }
+
+    private func detail(for entry: MealEntry) -> some View {
+        let completeness = completeness(for: entry)
+        let provenance = provenance(for: entry)
+
+        return List {
             Section("Ingredients") {
                 ForEach(entry.ingredients) { ingredient in
                     ingredientRow(ingredient)
@@ -28,7 +63,7 @@ struct MealDetailView: View {
 
             Section("Nutrition") {
                 HStack {
-                    MetricView(label: "Calories", value: caloriesText)
+                    MetricView(label: "Calories", value: caloriesText(for: completeness))
                     MetricView(label: "Protein", value: macroText(completeness.total.proteins100g))
                     MetricView(label: "Carbs", value: macroText(completeness.total.carbohydrates100g))
                     MetricView(label: "Fat", value: macroText(completeness.total.fat100g))
@@ -45,12 +80,27 @@ struct MealDetailView: View {
 
             if provenance.consideredCount > 0 {
                 Section("Data Source") {
-                    provenanceMixView
+                    provenanceMixView(provenance)
                 }
             }
         }
         .navigationTitle(entry.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    isShowingEditor = true
+                } label: {
+                    Label("Edit", systemImage: "pencil")
+                }
+            }
+        }
+        .sheet(isPresented: $isShowingEditor) {
+            MealCompositionEditorView(initialIngredients: entry.ingredients, title: "Edit Meal") { newIngredients in
+                guard !newIngredients.isEmpty else { return }
+                appState.updateMealIngredients(entry.id, ingredients: newIngredients)
+            }
+        }
     }
 
     private func ingredientRow(_ ingredient: LoggedIngredient) -> some View {
@@ -88,21 +138,21 @@ struct MealDetailView: View {
     /// proportional bar, reusing `ProductDetailCard`'s color convention
     /// (blue = Open Food Facts, orange = Custom) so the badge language is
     /// consistent across the app.
-    private var provenanceMixView: some View {
+    private func provenanceMixView(_ provenance: NutritionProvenanceMix) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             GeometryReader { geometry in
                 HStack(spacing: 0) {
                     if provenance.openFoodFactsCount > 0 {
                         Color.blue.opacity(0.6)
-                            .frame(width: geometry.size.width * fraction(provenance.openFoodFactsCount))
+                            .frame(width: geometry.size.width * fraction(provenance.openFoodFactsCount, of: provenance))
                     }
                     if provenance.customCount > 0 {
                         Color.orange.opacity(0.6)
-                            .frame(width: geometry.size.width * fraction(provenance.customCount))
+                            .frame(width: geometry.size.width * fraction(provenance.customCount, of: provenance))
                     }
                     if provenance.unknownCount > 0 {
                         Color.gray.opacity(0.4)
-                            .frame(width: geometry.size.width * fraction(provenance.unknownCount))
+                            .frame(width: geometry.size.width * fraction(provenance.unknownCount, of: provenance))
                     }
                 }
                 .clipShape(Capsule())
@@ -131,12 +181,12 @@ struct MealDetailView: View {
         }
     }
 
-    private func fraction(_ count: Int) -> Double {
+    private func fraction(_ count: Int, of provenance: NutritionProvenanceMix) -> Double {
         guard provenance.consideredCount > 0 else { return 0 }
         return Double(count) / Double(provenance.consideredCount)
     }
 
-    private var caloriesText: String {
+    private func caloriesText(for completeness: NutritionCompleteness) -> String {
         let kcal = (completeness.total.energyKcal100g ?? 0).formatted(.number.precision(.fractionLength(0...0)))
         return completeness.isComplete ? "\(kcal) kcal" : "≥ \(kcal) kcal"
     }

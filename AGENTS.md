@@ -253,6 +253,22 @@ dependency" below).
       below) as a "needs 6 eggs, have 4"-style caption, recomputed live on
       every render rather than cached at plan time, since a plan must
       never reserve or hold inventory (meals-feature-design.md §12 #5).
+      **FX-4**: each row's context menu now also offers "Edit Ingredients",
+      setting `editingEntry` and presenting `MealCompositionEditorView`
+      via `.sheet(item:)`, pre-populated from that init's
+      `initialIngredients` parameter with `editingEntry.ingredients` and
+      `title: "Edit Meal"`; its `onDone` calls
+      `appState.updateMealIngredients(entry.id, ingredients:)` (see the
+      `FoodpointKit` bullet below) instead of creating a new entry, so this
+      one method transparently handles both the planned (plain
+      `meals.updateEntry`) and eaten (pantry-reconciling) cases — the view
+      doesn't branch on `entry.status` itself. `MealDetailView`'s own
+      toolbar "Edit" button (see its own bullet below) reaches the
+      identical flow; this is the same "swipe/context-menu-plus-detail-
+      screen-button" duplication `TemplatesListView` already has for
+      templates. The row-push `.navigationDestination(item:)` now passes
+      `MealDetailView(entryID:)` directly rather than pre-resolving the
+      `MealEntry` here — see `MealDetailView`'s own bullet for why.
     - `DayTotalsHeaderView.swift` (MK-6) — day totals header: eaten
       calories/macros with a completeness signal (§8.2), plus planned
       calories as a separate "planned +X" projection line
@@ -278,12 +294,30 @@ dependency" below).
       row's display name/image via `appState.meals.recentlyUsedIngredients()`
       (no network call), the same trick the composition editor's "from
       history" source uses.
-    - `MealDetailView.swift` (MK-6) — one `MealEntry`'s ingredient rows,
-      nutrition completeness total, and — new — its nutrition-source
+    - `MealDetailView.swift` (MK-6; FX-4) — one `MealEntry`'s ingredient
+      rows, nutrition completeness total, and its nutrition-source
       provenance mix (`MealStore.provenanceMix(for:)`,
       meals-feature-design.md §8.3): a proportional bar plus counts of how
       many ingredients' `nutritionSnapshot` came from Open Food Facts vs.
       Custom vs. unknown-source. Pushed from `DayTimelineView`'s entry rows.
+      **FX-4**: takes `entryID: MealEntry.ID` rather than a plain
+      `MealEntry` value, and looks the entry up live from
+      `appState.meals.entries` on every render (a computed `entry`
+      property) instead of holding a snapshot captured once at push time —
+      needed because this view's own new toolbar "Edit" button presents
+      `MealCompositionEditorView(initialIngredients:title:onDone:)`
+      pre-populated with the current ingredients and, on save, calls
+      `appState.updateMealIngredients(entry.id, ingredients:)`; a
+      once-captured `let entry: MealEntry` would keep showing the pre-edit
+      ingredient list after that save until the screen was popped and
+      re-pushed. Renders a "Meal Not Found" placeholder if the live lookup
+      ever comes back `nil` (not currently reachable — nothing deletes an
+      entry out from under this screen yet — but handled defensively rather
+      than force-unwrapped). The nutrition/provenance computed properties
+      became functions taking the resolved `entry`/`completeness`/
+      `provenance` as parameters rather than reading instance-level
+      properties, since `entry` itself is now only available inside the
+      `if let entry` branch, not stored as a field.
     - `ItemDetailView.swift` — an existing pantry-item detail screen
       (nutrition, quantity, "Package Sizes"/"Nutrition" management),
       **not new**; gained a **Consumption** section (MK-6,
@@ -427,6 +461,27 @@ dependency" below).
       mutates anything — and empty for an entry that isn't currently
       `.planned` (an eaten entry's pantry effect, if any, already
       happened).
+    - `updateMealIngredients(_ entryID:ingredients:) -> MealEntry?` (FX-4) —
+      saves an edited ingredient list back onto an existing entry, the
+      orchestration behind `DayTimelineView`'s row context menu and
+      `MealDetailView`'s toolbar "Edit" button reopening
+      `MealCompositionEditorView(initialIngredients:title:onDone:)`. For a
+      `.planned` entry this is a plain `meals.updateEntry` with the new
+      list — planning never touches pantry stock, so there's nothing to
+      reconcile. For an `.eaten` entry it reconciles the pantry delta:
+      first restores exactly what was previously taken for each
+      `usesFromPantry` ingredient on the OLD list (the same
+      `consumedAmounts`-precise `pantry.restore` call `undoMealEaten`
+      makes, same fallback-to-`amount` rule if this entry's consumption was
+      never tracked through this `AppState` instance), then decrements
+      `pantry` again for each `usesFromPantry` ingredient on the NEW list
+      via `pantry.consume` (clamping to zero exactly as `markMealEaten`
+      does), recording the freshly-consumed amounts in `consumedAmounts`
+      keyed by the new ingredients' own `id`s so a later `undoMealEaten` or
+      another edit still reconciles correctly.  `usesFromPantry`-off
+      ingredients, old or new, never touch inventory, matching
+      `markMealEaten`/`undoMealEaten`'s own rule. No-op, including no
+      pantry mutation, if `entryID` isn't a known entry.
     - `logTemplateAndMarkEaten(_ template:date:slot:) async throws -> MealEntry?`
       (MK-4, meals-feature-design.md §7) — one-tap template logging's
       orchestration-aware counterpart to `MealStore.logTemplate`, which
@@ -453,6 +508,17 @@ dependency" below).
     §4.3 recreate-on-undo cases, and (MK-5) that planning a future meal
     has zero effect on pantry quantities or on today's eaten total, plus
     `stockShortfalls`' live/non-reserving behavior.
+  - `Tests/FoodpointKitTests/MealIngredientEditTests.swift` (FX-4) — Swift
+    Testing, same scope discipline as `MealPantryOrchestrationTests`:
+    covers only `AppState.updateMealIngredients(_:ingredients:)`. A
+    planned entry's edit never touches pantry and keeps its `.planned`
+    status; an eaten entry's edit reverses the old ingredient list's
+    consumption and applies the new list's exactly (including the case
+    where the new amount is smaller, and where it overshoots into a clamp
+    — deleting the item, same as `markMealEaten`'s own clamp — and a
+    subsequent `undoMealEaten` still re-creates it correctly); a mix of
+    `usesFromPantry` on/off across old and new lists only reconciles the
+    ingredients with the toggle on; and an unknown `entryID` is a no-op.
 
 - `Packages/PantryKit/` (local package, product `PantryKit`) — the
   pantry's state and CRUD logic, no `import SwiftUI` anywhere in it.

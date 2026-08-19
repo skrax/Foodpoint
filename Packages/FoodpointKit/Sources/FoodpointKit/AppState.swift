@@ -157,6 +157,62 @@ extension AppState {
         }
     }
 
+    /// Replaces `entryID`'s ingredient list after editing (FX-4) —
+    /// `MealCompositionEditorView`'s `initialIngredients` init reopened on an
+    /// existing entry rather than a blank one. For a `.planned` entry this is
+    /// just `meals.updateEntry` with the new list; planning never touches
+    /// pantry stock (meals-feature-design.md §5), so there's nothing to
+    /// reconcile.
+    ///
+    /// For an `.eaten` entry, whose old ingredients already decremented
+    /// `pantry` (`markMealEaten`), this reconciles the delta rather than
+    /// leaving stock reflecting stale ingredients: first it restores exactly
+    /// what was previously taken for each `usesFromPantry` ingredient on the
+    /// OLD list — the same `consumedAmounts`-precise `pantry.restore` call
+    /// `undoMealEaten` makes, falling back to the ingredient's own `amount`
+    /// if this entry's consumption was never tracked through this `AppState`
+    /// instance — then decrements `pantry` again for each `usesFromPantry`
+    /// ingredient on the NEW list via `pantry.consume` (clamping to zero
+    /// exactly as `markMealEaten` does), recording the freshly-consumed
+    /// amounts in `consumedAmounts` keyed by the new ingredients' own `id`s
+    /// so a later `undoMealEaten` or another edit reconciles correctly.
+    /// `usesFromPantry`-off ingredients, old or new, never touch inventory,
+    /// matching `markMealEaten`/`undoMealEaten`'s own rule.
+    ///
+    /// No-op, including no pantry mutation, if `entryID` isn't a known entry.
+    /// Returns the updated entry.
+    @discardableResult
+    public func updateMealIngredients(_ entryID: UUID, ingredients: [LoggedIngredient]) -> MealEntry? {
+        guard let existing = meals.entries.first(where: { $0.id == entryID }) else { return nil }
+
+        if existing.status == .eaten {
+            for ingredient in existing.ingredients where ingredient.usesFromPantry {
+                let restoredAmount = consumedAmounts.removeValue(forKey: ingredient.id) ?? ingredient.amount
+                guard restoredAmount > 0 else { continue }
+                let product = Product(
+                    id: ingredient.barcode,
+                    name: ingredient.productName,
+                    brand: ingredient.productBrand,
+                    imageURL: ingredient.imageURL,
+                    nutriScoreGrade: nil,
+                    categoriesTags: [],
+                    nutrition: ingredient.impliedNutritionPer100g
+                )
+                pantry.restore(product: product, unit: ingredient.impliedUnit, amount: restoredAmount)
+            }
+
+            for ingredient in ingredients where ingredient.usesFromPantry {
+                let consumed = pantry.consume(barcode: ingredient.barcode, amount: ingredient.amount)
+                consumedAmounts[ingredient.id] = consumed
+            }
+        }
+
+        var updated = existing
+        updated.ingredients = ingredients
+        meals.updateEntry(updated)
+        return updated
+    }
+
     /// One-tap template logging (MK-4, meals-feature-design.md §7): the
     /// orchestration-aware counterpart to `MealStore.logTemplate` — that
     /// method alone can't decrement pantry stock, since `MealKit` never
