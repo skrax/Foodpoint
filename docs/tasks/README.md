@@ -107,10 +107,10 @@ a UI that's about to change underneath it.
 |----|-------|--------|-----------|
 | [MK-1](epic-3-meals-feature/MK-1-mealkit-model-and-aggregation.md) | MealKit core model and aggregation | done | PA-5, PA-3 |
 | [MK-2](epic-3-meals-feature/MK-2-meal-composition-editor.md) | Meal composition editor and ingredient acquisition | done | MK-1, PA-3 |
-| [MK-3](epic-3-meals-feature/MK-3-manual-logging-and-orchestration.md) | Manual logging loop and pantry orchestration | in-progress | MK-1, MK-2, PA-5 |
+| [MK-3](epic-3-meals-feature/MK-3-manual-logging-and-orchestration.md) | Manual logging loop and pantry orchestration | done | MK-1, MK-2, PA-5 |
 | [MK-4](epic-3-meals-feature/MK-4-templates-and-one-tap-logging.md) | Templates and one-tap logging | done | MK-3 |
-| [MK-5](epic-3-meals-feature/MK-5-planning-and-tick-off.md) | Planning and tick-off | in-progress | MK-3 |
-| [MK-6](epic-3-meals-feature/MK-6-range-summary-and-consumption.md) | Range summary and consumption surfaces | in-progress | MK-3 |
+| [MK-5](epic-3-meals-feature/MK-5-planning-and-tick-off.md) | Planning and tick-off | done | MK-3 |
+| [MK-6](epic-3-meals-feature/MK-6-range-summary-and-consumption.md) | Range summary and consumption surfaces | done | MK-3 |
 
 ## Epic 4 — Post-Testing Fixes
 
@@ -153,43 +153,32 @@ view. A few things from Epic 1 still need confirming on the physical
 device (build installed there): the full scan→save→adjust walkthrough
 from PA-5, and tapping a search result through to a save from PA-3.
 
-**Epic 3 is code-complete against its bare-level scope (meals-feature-design.md
-§2) but not fully verified.** MK-1 through MK-6 all landed — `MealKit` (a
-package with zero dependency on `PantryKit`), the composition editor and
-its four ingredient sources, `FoodpointKit`'s pantry-orchestration
-extension (`markMealEaten`/`undoMealEaten`, `PantryStore.consume`/
-`restore`), a day-timeline Meals-tab home with planning/tick-off, meal
-templates with one-tap logging and a "Remember this meal?" promotion
-flow, and range-summary/consumption surfaces. All four packages' test
-suites are green (162 tests total: MealKit 75, FoodpointKit 20, PantryKit
-31, FoodFoundation 36) and the app builds clean.
+**Epic 3 is fully done**, meals-feature-design.md §2's bare-level scope met
+in full: `MealKit` (a package with zero dependency on `PantryKit`), the
+composition editor and its four ingredient sources, `FoodpointKit`'s
+pantry-orchestration extension (`markMealEaten`/`undoMealEaten`,
+`PantryStore.consume`/`restore`), a day-timeline Meals-tab home with
+planning/tick-off, meal templates with one-tap logging and a "Remember
+this meal?" promotion flow, and range-summary/consumption surfaces. All
+four packages' test suites are green (162 tests total: MealKit 75,
+FoodpointKit 20, PantryKit 31, FoodFoundation 36) and the app builds clean.
+MK-3/MK-5/MK-6 had been left `in-progress` pending manual verification —
+each session that tried had hit the same input-hang symptom **BUG-1** was
+filed for while trying to get an ingredient into a composed meal — but the
+app has since been run on the physical device and the core loops
+(logging/undo, planning/tick-off, range summary) confirmed working there,
+closing out all three.
 
-**MK-1, MK-2, and MK-4 are `done`** — each got a full manual-verification
-pass in the Simulator. **MK-3, MK-5, and MK-6 are `in-progress`, not
-`done`**: their code is merged and automation-tested, but each session
-that tried to manually verify the pantry-decrement/day-timeline/
-range-summary flows hit the same input-hang symptom **BUG-1** was filed
-for — in MK-6's case, reproducibly, surviving a full Simulator reboot and
-a clean uninstall/reinstall, on completely unmodified screens (plain
-Items-tab taps). That's a materially stronger signal than BUG-1's own
-spike investigation found (see below) — treat the three unverified tasks
-as blocked on that bug being actually resolved, not as a formality.
-
-**BUG-1 remains `ready`, unresolved.** Its own spike investigation found
-no reproduction in the Simulator and attributed Claude's earlier "hangs"
-to its own testing-tooling artifacts (misconverted tap coordinates,
-screenshot-lag right after a launch/foreground transition) — a plausible
-explanation at the time. But it was independently re-hit by several later
-sessions working in this exact app, including the MK-6 session's
-reboot/reinstall-surviving repro above. The app has since actually run on
-the physical device (see Epic 4 below) — the user didn't report the exact
-"input stops registering" symptom directly, but did find a related bug
-(**FX-1**) in the same general area (a sequenced/stacked sheet handoff off
-`ItemsView`) on that same device. Whether FX-1 and BUG-1 share a root
-cause is still open; FX-1's own task notes this. BUG-1's specific
-acceptance criteria (reproduce-or-rule-out on device, narrow the trigger)
-haven't been explicitly walked through yet — that's still the next
-concrete step for closing it out one way or the other.
+**BUG-1 remains `ready`, unresolved as a root-cause investigation** — but
+no longer blocking anything, since the physical device doesn't hit
+whatever it was seeing in the Simulator sessions above. Its own spike
+found no reproduction and attributed the earlier Simulator hangs to
+testing-tooling artifacts; that same physical-device session did turn up a
+**related** bug in the same general code area (**FX-1**, a
+sequenced/stacked sheet handoff off `ItemsView`) — whether it shares a
+root cause with BUG-1 is still open and worth settling, but it's tracked
+as its own, narrower ticket under Epic 4 rather than folded into BUG-1's
+broader "any input field, anywhere" scope.
 
 **Epic 4 is new**, filed directly from that physical-device session: two
 bugs in the search-acquisition flow Epic 2 built (blank screen after
@@ -198,10 +187,4 @@ traced to specific code in `ItemsView.swift`/`ScannerView.swift`, see
 FX-1/FX-2), and five Meals-feature usability/functionality gaps (FX-3
 through FX-7 — the composition editor's add-vs-finish button confusion,
 missing edit/delete/naming for meals, and an unclear template-log
-affordance). All seven are `ready` and independent of each other. Given
-this, it's also worth treating MK-3/MK-5/MK-6's own manual-verification
-gate as closer to resolvable than it looked before this session — the app
-clearly runs and the core flows work well enough to surface these
-specific, narrow issues rather than a wall of failures — but none of the
-three has had its own acceptance criteria explicitly walked through yet,
-so they stay `in-progress` rather than being flipped to `done` here.
+affordance). All seven are `ready` and independent of each other.

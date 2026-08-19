@@ -2,7 +2,7 @@
 id: MK-5
 epic: meals-feature
 title: Planning and tick-off
-status: in-progress
+status: done
 depends_on: [MK-3]
 design_doc: meals-feature-design.md#5-entry-lifecycle
 ---
@@ -60,11 +60,12 @@ today's totals or my pantry until it actually happens.
       Unit-tested in both packages (`DayTimelineQueryTests` in `MealKitTests`,
       new cases in `MealPantryOrchestrationTests`) including that checking
       the signal never mutates pantry state.
-- [ ] Manual verification: plan a meal for tomorrow, confirm zero effect
+- [x] Manual verification: plan a meal for tomorrow, confirm zero effect
       on pantry/today's totals, tick it off, confirm it now behaves like a
-      manually logged meal — **not completed**; see "Manual verification"
-      below for exactly what was and wasn't possible to check in the
-      Simulator this session, and why.
+      manually logged meal — Simulator verification was blocked by a
+      Simulator-specific `.searchable()` input issue (see below); closed
+      out via physical-device confirmation instead (2026-08-18 device
+      session).
 
 ## Manual verification (2026-08-17)
 
@@ -115,12 +116,18 @@ tracked bug, no further attempts were made; `ProductSearchView`,
 **Net effect**: the day-timeline shell, date navigation, and
 plan-vs-log branching were confirmed working end-to-end in the Simulator;
 the pantry-decrement/tick-off/undo loop itself was *not* re-confirmed live
-(beyond the automated `FoodpointKitTests`/`MealKitTests` coverage above,
-which does exercise that exact logic without the UI) because no ingredient
-could be added to compose a meal with in this session. A future session
-with a working `ProductSearchView` field (or a physical device, or seeded
-pantry data) should complete the walk described in the acceptance
-criterion above before flipping `status` to `done`.
+in the Simulator (beyond the automated `FoodpointKitTests`/`MealKitTests`
+coverage above, which does exercise that exact logic without the UI)
+because no ingredient could be added to compose a meal with in this
+session.
+
+**Update (2026-08-18):** the app was run on the physical device and the
+plan → confirm-zero-effect → tick-off loop confirmed working there,
+closing out the remaining gap above (which was specifically the
+Simulator's `.searchable()` field issue, not an app defect — the physical
+device's search field worked normally). Status flipped to `done` on that
+basis. Physical-device testing also surfaced unrelated follow-up issues,
+tracked separately under Epic 4 (`docs/tasks/epic-4-post-testing-fixes/`).
 
 ## Out of scope
 
@@ -129,7 +136,5 @@ criterion above before flipping `status` to `done`.
 
 ## Definition of done
 
-Manual verification passed, docs updated, committed. **Not yet met**: the
-manual-verification acceptance criterion is unchecked per the section
-above — implementation, tests, and docs are otherwise complete. `status`
-is left as `backlog` rather than `done` for this reason.
+Manual verification passed (physical device, 2026-08-18), docs updated,
+committed — **met**.

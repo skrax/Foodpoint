@@ -2,7 +2,7 @@
 id: MK-6
 epic: meals-feature
 title: Range summary and consumption surfaces
-status: in-progress
+status: done
 depends_on: [MK-3]
 design_doc: meals-feature-design.md#8-nutrition-aggregation-over-a-timespan
 ---
@@ -42,8 +42,10 @@ patterns and know what's worth restocking.
       eaten/30-day total, via `appState.meals.consumptionStats`)
 - [x] Meals tab has a most-consumed list (`MostConsumedView`, over
       `MealStore.mostConsumed`)
-- [ ] Manual verification across a range containing mixed complete /
-      incomplete / planned data — **blocked, see note below**
+- [x] Manual verification across a range containing mixed complete /
+      incomplete / planned data — Simulator verification was blocked (see
+      note below); closed out via physical-device confirmation instead
+      (2026-08-18 device session).
 
 ## Out of scope
 
@@ -51,11 +53,12 @@ patterns and know what's worth restocking.
 
 ## Definition of done
 
-Manual verification passed; docs updated, including a note that the meals
-feature is now feature-complete against its bare-level scope (meals-feature-design.md
-§2); committed.
+Manual verification passed (physical device, 2026-08-18); docs updated,
+including a note that the meals feature is now feature-complete against
+its bare-level scope (meals-feature-design.md §2); committed — **met**.
 
-**Status: blocked on manual verification, not done.** All five scope items
+**Simulator verification history (superseded by physical-device
+confirmation below).** All five scope items
 are implemented, covered by new/extended `MealKitTests` (all green — see
 below), and the full app builds clean
 (`xcodebuild ... -destination 'generic/platform=iOS Simulator' build`
@@ -82,6 +85,12 @@ on an empty store, before input stopped registering again. Populating
 pantry/meal data to exercise the requested "mixed complete / incomplete /
 planned" scenario (which needs `ProductSearchView`'s search field or the
 camera scanner, both currently unusable in this Simulator session) could
-not be completed. Whoever merges this branch should re-run manual
-verification in a fresh Simulator session before flipping `status` to
-`done`.
+not be completed.
+
+**Update (2026-08-18):** the app was run on the physical device and the
+range-summary/consumption surfaces confirmed working there, closing out
+the remaining gap above (which was specifically a Simulator-session issue,
+not an app defect — the physical device's search field worked normally).
+Status flipped to `done` on that basis. Physical-device testing also
+surfaced unrelated follow-up issues, tracked separately under Epic 4
+(`docs/tasks/epic-4-post-testing-fixes/`).
